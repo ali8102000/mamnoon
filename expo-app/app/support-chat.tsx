@@ -191,8 +191,11 @@ export default function SupportChatScreen() {
     else if (sentMessage) {
       setMessages((current) => current.some((m) => m.id === sentMessage.id) ? current : [...current, sentMessage]);
       if (!staff) {
-        const { error: aiError } = await supabase.functions.invoke("support-ai-reply", { body: { message_id: sentMessage.id } });
-        if (aiError) console.warn("Support AI reply unavailable; staff can answer from inbox.", aiError.message);
+        void supabase.functions.invoke("support-ai-reply", { body: { message_id: sentMessage.id } })
+          .then(({ error: aiError }) => {
+            if (aiError) console.warn("Support AI reply unavailable; staff can answer from inbox.", aiError.message);
+          })
+          .catch((aiError) => console.warn("Support AI request failed.", aiError));
       }
     }
   }
