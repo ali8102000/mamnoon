@@ -1396,37 +1396,44 @@ export default function NewRequest() {
     return (
       <View style={styles.taxiScreen}>
         <ActiveRequestConfirmModal request={activeRequestPreview} visible={activeRequestPromptVisible} choice={activeRequestChoice} busy={busy} onChoice={setActiveRequestChoice} onConfirm={() => void confirmActiveRequestChoice()} onClose={() => setActiveRequestPromptVisible(false)} />
-        <MapView
-          ref={mapRef}
-          style={StyleSheet.absoluteFillObject}
-          provider={PROVIDER_GOOGLE}
-          initialRegion={region}
-          testID="mamnoon-taxi-map"
-          mapPadding={{ top: 158, right: 0, bottom: taxiSheetHeight, left: 0 }}
-          onPanDrag={() => { userPannedMapRef.current = true; }}
-          onRegionChangeComplete={handleRegionChangeComplete}
-          showsUserLocation
-          showsMyLocationButton={false}
-          loadingEnabled
-        >
-          {mapMode === "destination" && pickupCoords && (
-            <Marker coordinate={pickupCoords} title="نقطة الانطلاق" anchor={{ x: 0.5, y: 1 }}>
-              <MapCenterPin color="#1687F8" />
-            </Marker>
-          )}
-          {mapMode === "pickup" && nearbyDrivers.map((driver) => (
-            <Marker
-              key={driver.pin_id}
-              coordinate={{ latitude: driver.lat, longitude: driver.lng }}
-              title="سيارة قريبة"
-              anchor={{ x: 0.5, y: 0.5 }}
-              flat
-              rotation={Number.isFinite(driver.heading) ? Number(driver.heading) : 0}
-            >
-              <View style={styles.taxiNearbyMarker}><Text style={styles.taxiNearbyMarkerText}>🚕</Text></View>
-            </Marker>
-          ))}
-        </MapView>
+        {GOOGLE_MAPS_CONFIGURED ? (
+          <MapView
+            ref={mapRef}
+            style={StyleSheet.absoluteFillObject}
+            provider={PROVIDER_GOOGLE}
+            initialRegion={region}
+            testID="mamnoon-taxi-map"
+            mapPadding={{ top: 158, right: 0, bottom: taxiSheetHeight, left: 0 }}
+            onPanDrag={() => { userPannedMapRef.current = true; }}
+            onRegionChangeComplete={handleRegionChangeComplete}
+            showsUserLocation
+            showsMyLocationButton={false}
+            loadingEnabled
+          >
+            {mapMode === "destination" && pickupCoords && (
+              <Marker coordinate={pickupCoords} title="نقطة الانطلاق" anchor={{ x: 0.5, y: 1 }}>
+                <MapCenterPin color="#1687F8" />
+              </Marker>
+            )}
+            {mapMode === "pickup" && nearbyDrivers.map((driver) => (
+              <Marker
+                key={driver.pin_id}
+                coordinate={{ latitude: driver.lat, longitude: driver.lng }}
+                title="سيارة قريبة"
+                anchor={{ x: 0.5, y: 0.5 }}
+                flat
+                rotation={Number.isFinite(driver.heading) ? Number(driver.heading) : 0}
+              >
+                <View style={styles.taxiNearbyMarker}><Text style={styles.taxiNearbyMarkerText}>🚕</Text></View>
+              </Marker>
+            ))}
+          </MapView>
+        ) : (
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: palette.canvas, alignItems: "center", justifyContent: "center", padding: 24 }]}>
+            <Text style={{ color: palette.ink, fontSize: 16, fontWeight: "900", textAlign: "center" }}>الخريطة غير مفعّلة حالياً</Text>
+            <Text style={{ color: palette.muted, fontSize: 12, textAlign: "center", marginTop: 8, lineHeight: 20 }}>فعّل مفتاح Google Maps حتى تظهر الخريطة. تقدر حالياً تحدد موقعك عبر زر «موقعي» وتكمل بيانات الطلب.</Text>
+          </View>
+        )}
         {(
           <TouchableOpacity
             style={[styles.taxiLocateFloating, { bottom: taxiSheetHeight + 10 }]}
