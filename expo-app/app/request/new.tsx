@@ -34,6 +34,9 @@ import { ServiceArtwork, hasServiceArtwork } from "@/components/service-artwork"
 import { palette, radius } from "@/styles/theme";
 import { TAXI_VEHICLE_SVGS } from "@/lib/taxi-vehicle-art";
 
+// Do not mount the native Google map when the build has no Maps key.
+const GOOGLE_MAPS_CONFIGURED = Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY);
+
 type Coordinates = { latitude: number; longitude: number };
 type VehicleCategory = "economy" | "premium" | "luxury" | "large";
 
@@ -1944,46 +1947,55 @@ export default function NewRequest() {
       )}
 
       <View style={[styles.mapContainer, { height: Math.min(window.width - 32, 340) }]}>
-        {!serviceMapExpanded && (
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            provider={PROVIDER_GOOGLE}
-            initialRegion={region}
-            onPanDrag={() => { userPannedMapRef.current = true; }}
-            onRegionChangeComplete={handleRegionChangeComplete}
-            showsUserLocation
-            showsMyLocationButton={false}
-            loadingEnabled
-          >
-            {nearbyWorkers.map((worker) => (
-              <Marker
-                key={worker.pin_id}
-                coordinate={{ latitude: worker.lat, longitude: worker.lng }}
-                title="فني قريب"
-                anchor={{ x: 0.5, y: 0.5 }}
-                flat
-                rotation={Number.isFinite(worker.heading) ? Number(worker.heading) : 0}
+        {GOOGLE_MAPS_CONFIGURED ? (
+          <>
+            {!serviceMapExpanded && (
+              <MapView
+                ref={mapRef}
+                style={styles.map}
+                provider={PROVIDER_GOOGLE}
+                initialRegion={region}
+                onPanDrag={() => { userPannedMapRef.current = true; }}
+                onRegionChangeComplete={handleRegionChangeComplete}
+                showsUserLocation
+                showsMyLocationButton={false}
+                loadingEnabled
               >
-                <View style={styles.taxiNearbyMarker}><Text style={styles.taxiNearbyMarkerText}>🔧</Text></View>
-              </Marker>
-            ))}
-          </MapView>
+                {nearbyWorkers.map((worker) => (
+                  <Marker
+                    key={worker.pin_id}
+                    coordinate={{ latitude: worker.lat, longitude: worker.lng }}
+                    title="فني قريب"
+                    anchor={{ x: 0.5, y: 0.5 }}
+                    flat
+                    rotation={Number.isFinite(worker.heading) ? Number(worker.heading) : 0}
+                  >
+                    <View style={styles.taxiNearbyMarker}><Text style={styles.taxiNearbyMarkerText}>🔧</Text></View>
+                  </Marker>
+                ))}
+              </MapView>
+            )}
+            <View pointerEvents="none" style={styles.mapCenterPin}><MapCenterPin /></View>
+            <Text style={styles.mapHint}>
+              {mapMode === "pickup"
+                ? "حرّك الخريطة حتى تصبح النقطة تحت الدبوس"
+                : "حرّك الخريطة حتى تصبح الوجهة تحت الدبوس"}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setServiceMapExpanded(true)}
+              style={styles.mapExpandButton}
+              accessibilityRole="button"
+              accessibilityLabel="تكبير الخريطة"
+            >
+              <Text style={styles.mapExpandButtonText}>⛶ تكبير</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={[styles.map, { alignItems: "center", justifyContent: "center", padding: 24 }]}>
+            <Text style={{ color: palette.ink, fontSize: 14, fontWeight: "900", textAlign: "center" }}>الخريطة غير مفعّلة حالياً</Text>
+            <Text style={{ color: palette.muted, fontSize: 12, textAlign: "center", marginTop: 8, lineHeight: 20 }}>تقدر تكمل تفاصيل الطلب، وسيتم تفعيل تحديد الموقع على الخريطة بعد إعداد مفتاح Google Maps.</Text>
+          </View>
         )}
-        <View pointerEvents="none" style={styles.mapCenterPin}><MapCenterPin /></View>
-        <Text style={styles.mapHint}>
-          {mapMode === "pickup"
-            ? "حرّك الخريطة حتى تصبح النقطة تحت الدبوس"
-            : "حرّك الخريطة حتى تصبح الوجهة تحت الدبوس"}
-        </Text>
-        <TouchableOpacity
-          onPress={() => setServiceMapExpanded(true)}
-          style={styles.mapExpandButton}
-          accessibilityRole="button"
-          accessibilityLabel="تكبير الخريطة"
-        >
-          <Text style={styles.mapExpandButtonText}>⛶ تكبير</Text>
-        </TouchableOpacity>
       </View>
 
       <Modal
@@ -1993,30 +2005,37 @@ export default function NewRequest() {
         onRequestClose={() => setServiceMapExpanded(false)}
       >
         <View style={styles.expandedMapScreen}>
-          <MapView
-            ref={mapRef}
-            style={StyleSheet.absoluteFillObject}
-            provider={PROVIDER_GOOGLE}
-            initialRegion={region}
-            onPanDrag={() => { userPannedMapRef.current = true; }}
-            onRegionChangeComplete={handleRegionChangeComplete}
-            showsUserLocation
-            showsMyLocationButton={false}
-            loadingEnabled
-          >
-            {nearbyWorkers.map((worker) => (
-              <Marker
-                key={worker.pin_id}
-                coordinate={{ latitude: worker.lat, longitude: worker.lng }}
-                title="فني قريب"
-                anchor={{ x: 0.5, y: 0.5 }}
-                flat
-                rotation={Number.isFinite(worker.heading) ? Number(worker.heading) : 0}
-              >
-                <View style={styles.taxiNearbyMarker}><Text style={styles.taxiNearbyMarkerText}>🔧</Text></View>
-              </Marker>
-            ))}
-          </MapView>
+          {GOOGLE_MAPS_CONFIGURED ? (
+            <MapView
+              ref={mapRef}
+              style={StyleSheet.absoluteFillObject}
+              provider={PROVIDER_GOOGLE}
+              initialRegion={region}
+              onPanDrag={() => { userPannedMapRef.current = true; }}
+              onRegionChangeComplete={handleRegionChangeComplete}
+              showsUserLocation
+              showsMyLocationButton={false}
+              loadingEnabled
+            >
+              {nearbyWorkers.map((worker) => (
+                <Marker
+                  key={worker.pin_id}
+                  coordinate={{ latitude: worker.lat, longitude: worker.lng }}
+                  title="فني قريب"
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  flat
+                  rotation={Number.isFinite(worker.heading) ? Number(worker.heading) : 0}
+                >
+                  <View style={styles.taxiNearbyMarker}><Text style={styles.taxiNearbyMarkerText}>🔧</Text></View>
+                </Marker>
+              ))}
+            </MapView>
+          ) : (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+              <Text style={{ color: palette.ink, fontSize: 14, fontWeight: "900", textAlign: "center" }}>الخريطة غير مفعّلة حالياً</Text>
+              <Text style={{ color: palette.muted, fontSize: 12, textAlign: "center", marginTop: 8 }}>أغلق هذه النافذة وأكمل الطلب، وسيتم تفعيل الخريطة بعد إعداد المفتاح.</Text>
+            </View>
+          )}
           <View pointerEvents="none" style={styles.mapCenterPin}><MapCenterPin /></View>
           <View style={styles.expandedMapSearchWrap}>
             <View style={styles.expandedMapSearchRow}>
