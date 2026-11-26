@@ -1,5 +1,5 @@
 import "@/lib/background-location";
-import { Stack, router } from "expo-router";
+import { Stack, router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Text, TextInput, View, useColorScheme } from "react-native";
 import Svg, { Defs, LinearGradient as SvgLinearGradient, RadialGradient, Rect, Stop } from "react-native-svg";
@@ -23,6 +23,7 @@ import { NativeBottomNavigation } from "@/components/native-bottom-navigation";
 import { palette } from "@/styles/theme";
 import { loadNotificationPreferences, setNotificationPreferences } from "@/lib/notification-sound";
 import { AppErrorBoundary } from "@/components/app-error-boundary";
+import { APP_VARIANT } from "@/lib/app-variant";
 
 I18nManager.forceRTL(true);
 I18nManager.allowRTL(true);
@@ -62,7 +63,7 @@ async function configureAndroidNotificationChannels() {
 }
 
 function PushNotificationSetup() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const handledResponseId = useRef<string | null>(null);
   useEffect(() => {
     void loadNotificationPreferences().then(() => configureAndroidNotificationChannels()).catch((error) => console.warn("[notifications] Could not configure Android channels:", error));
@@ -126,14 +127,17 @@ function PushNotificationSetup() {
       try {
         const responseId = response.notification.request.identifier;
         if (handledResponseId.current === responseId) return;
-        const data = response.notification.request.content.data as { request_id?: unknown; type?: unknown };
+        const data = response.notification.request.content.data as { request_id?: unknown; type?: unknown; status?: unknown };
         handledResponseId.current = responseId;
         if (typeof data?.request_id === "string" && response.actionIdentifier === "accept") {
           const { error } = await supabase.rpc("accept_service_request", { _request_id: data.request_id });
           if (error) Alert.alert("تعذّر قبول الطلب", error.message || "قد يكون العرض انتهى أو قبله مزوّد آخر.");
           else router.push({ pathname: "/request/[id]", params: { id: data.request_id } });
         } else if (typeof data?.request_id === "string") router.push({ pathname: "/request/[id]", params: { id: data.request_id } });
-        else if (data?.type === "taxi_high_demand" || data?.type === "company_announcement") router.push("/home");
+        else if (data?.type === "provider_approved" || (data?.type === "provider_verification" && data?.status === "approved")) {
+          await refresh();
+          router.replace("/home");
+        } else if (data?.type === "taxi_high_demand" || data?.type === "company_announcement") router.push("/home");
         else router.push("/profile");
       } catch (error) {
         console.warn("[notifications] Response handling failed:", error);
@@ -162,6 +166,22 @@ function PushNotificationSetup() {
       appStateSubscription.remove();
     };
   }, [user?.id]);
+  return null;
+}
+
+function ProviderApprovalGate() {
+  const { user, roles, loading } = useAuth();
+  const pathname = usePathname();
+  useEffect(() => {
+    if (loading || !user || APP_VARIANT === "customer") return;
+    const privileged = roles.some((role) => ["admin", "super_admin", "support", "finance", "moderator"].includes(role));
+    if (privileged || roles.includes(APP_VARIANT)) return;
+    const allowedRoutes = ["/", "/index", "/auth", "/auth/callback", "/select-governorate", "/forgot-password", "/reset-password", "/onboarding/worker", "/onboarding/driver", "/support-chat"];
+    if (allowedRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"))) return;
+    if (APP_VARIANT === "worker") router.replace("/onboarding/worker");
+    else if (APP_VARIANT === "large_driver") router.replace({ pathname: "/onboarding/driver", params: { providerType: "large_driver" } });
+    else router.replace({ pathname: "/onboarding/driver", params: { providerType: "driver" } });
+  }, [loading, user?.id, roles, pathname]);
   return null;
 }
 
@@ -214,6 +234,7 @@ export default function RootLayout() {
     <ThemePreferenceProvider>
       <AuthProvider>
         <PushNotificationSetup />
+        <ProviderApprovalGate />
         <View style={{ flex: 1, backgroundColor: palette.canvasSolid }}>
           <ApplicationBackdrop />
           <StatusBar style={colorScheme === "dark" ? "light" : "dark"} backgroundColor={palette.canvasSolid} />
