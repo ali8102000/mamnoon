@@ -76,6 +76,7 @@ jobs:
           }
           console.log(`Verified ${expected.variant}: ${expected.package}`);
           NODE
+          node -e "if(!process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY) throw new Error('Missing GitHub secret EXPO_PUBLIC_GOOGLE_MAPS_API_KEY'); console.log('Google Maps key is present (value hidden)')"
           npx expo config --type public --json > /tmp/expo-public-config.json
           node -e "const c=require('/tmp/expo-public-config.json'); if(c.android?.package!=='com.mamnoon.app') process.exit(1); console.log('Expo dynamic config validated')"
 
