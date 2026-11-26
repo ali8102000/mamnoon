@@ -61,7 +61,7 @@ type IncomingRequest = {
 export default function HomeScreen() {
   const { user, profile, roles } = useAuth();
   // The customer app is a partner marketplace; provider role switching is disabled.
-  const selectedRole = "customer";
+  const selectedRole: string = "customer";
   const { resolved: resolvedTheme, setMode } = useThemePreference();
   const { companyName, logoUrl: companyLogoUrl, welcomeMessage, homeVisualUrl, homeVisualAnimated, homeVisualEnabled, homeVisualWidthPx, homeVisualHeightPx, homeVisualPosition, homeVisualLinkUrl } = useCompanyBranding();
 
