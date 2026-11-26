@@ -119,7 +119,7 @@ export default function DriverOnboarding() {
           : saved;
         const verificationData = verification.data;
         const m = (verificationData?.metadata ?? {}) as Record<string, unknown>;
-        const resolvedStatus = verificationData?.status ?? relevantSaved?.status ?? null;
+        const resolvedStatus = relevantSaved?.status ?? verificationData?.status ?? null;
         if (resolvedStatus) setStatus(resolvedStatus);
         setRejectionReason(verificationData?.rejection_reason ?? null);
         const make = typeof relevantSaved?.vehicle_make === "string" ? relevantSaved.vehicle_make : m.vehicleMake;
@@ -479,11 +479,11 @@ export default function DriverOnboarding() {
   if (status === "pending" || status === "approved") {
     return (
       <View style={styles.statusContainer}>
-        <Text style={styles.title}>{status === "approved" ? "تم اعتماد حسابك" : "طلبك قيد المراجعة"}</Text>
+        <Text style={styles.title}>{status === "approved" ? "تم اعتماد حسابك" : "لقد تلقينا طلبك"}</Text>
         <Text style={styles.statusText}>
           {status === "approved"
-            ? (largeDriverMode ? "تم اعتمادك سائقاً للسيارات الكبيرة. تقدر تستقبل طلبات كيا الحمل والركاب والباص حسب نوع مركبتك." : "تهانينا! تم تفعيل حسابك كسائق تكسي بعد تدقيق مستمسكاتك وسيارتك. نرحب بك ضمن أسرة شركة ممنون الموثّقة ونتمنى لك التوفيق والنجاح.")
-            : "استلمنا بيانات السيارة والهوية. طلبك الآن بانتظار موافقة " + companyName + "، وستتمكن من استقبال الرحلات بعد الاعتماد."}
+            ? (largeDriverMode ? "تهانينا! تم اعتمادك سائقاً للنقل الثقيل ضمن ممنون. نرحب بك ونتمنى لك التوفيق والرزق الوفير." : "تهانينا! تم اعتمادك سائق تكسي ضمن ممنون. نرحب بك ونتمنى لك التوفيق والرزق الوفير.")
+            : "لقد تلقينا طلبك بنجاح، وهو الآن قيد المراجعة لدى فريق ممنون. لن تتمكن من الدخول إلى الواجهة الرئيسية أو استقبال الرحلات قبل اعتماد حسابك. سنرسل إليك إشعاراً فور اتخاذ القرار، ويمكنك تحديث معلوماتك من الزر أدناه."}
         </Text>
         {status === "approved" ? (
           <>
@@ -507,8 +507,7 @@ export default function DriverOnboarding() {
           </>
         ) : (
           <View style={{ gap: 10 }}>
-            <Button title="تعديل البيانات وإعادة إرفاق السنوية والمستمسكات" onPress={() => setStatus(null)} />
-            <Button title="العودة للرئيسية" onPress={() => safeNavigate("/home", "replace")} />
+            <Button title="تحديث المعلومات" onPress={() => setStatus(null)} />
           </View>
         )}
       </View>
