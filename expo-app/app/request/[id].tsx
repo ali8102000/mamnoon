@@ -2153,18 +2153,28 @@ export default function RequestDetail() {
               </TouchableOpacity>
             </View>
           )}
-          {(isCustomer || (isProvider && request.type === "service")) &&
-            request.status !== "cancelled" &&
-            request.status !== "completed" &&
-            request.status !== "in_progress" &&
-            !request.provider_arrived_at && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: palette.danger }]}
-                onPress={cancelRequest}
-              >
-                <Text style={styles.actionBtnText}>{isProvider ? "اعتذار وإعادة البحث عن فني" : "إلغاء الطلب"}</Text>
-              </TouchableOpacity>
-            )}
+          {(
+            (isCustomer && request.type === "taxi" &&
+              ["pending", "searching", "accepted"].includes(request.status) &&
+              !request.provider_arrived_at) ||
+            (isCustomer && request.type !== "taxi" &&
+              !["cancelled", "completed", "in_progress"].includes(request.status) &&
+              !request.provider_arrived_at) ||
+            (isProvider && request.type === "service" &&
+              !["cancelled", "completed", "in_progress"].includes(request.status) &&
+              !request.provider_arrived_at)
+          ) && (
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: palette.danger }]}
+              onPress={cancelRequest}
+            >
+              <Text style={styles.actionBtnText}>
+                {isProvider ? "اعتذار وإعادة البحث عن فني" :
+                  request.type === "taxi" && request.vehicle_category === "large" ? "إلغاء طلب الناقل" :
+                  request.type === "taxi" ? "إلغاء الرحلة" : "إلغاء الطلب"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {["in_progress", "completed"].includes(request.status) && (isCustomer ? !!request.provider_id : !!request.customer_id) && (
