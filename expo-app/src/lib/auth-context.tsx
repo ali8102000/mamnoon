@@ -239,14 +239,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
             return true;
           });
-      if (!rolesResult.error && !driverResult.error && driverResult.data?.status === "approved") {
-        const category = String(driverResult.data.vehicle_category);
-        const approvedRole: AppRole | null = category === "large" ? "large_driver"
-          : ["economy", "premium", "luxury"].includes(category) ? "driver" : null;
-        if (approvedRole && !mappedRoles.includes(approvedRole)) mappedRoles.push(approvedRole);
-      }
-      if (!rolesResult.error && !workerResult.error && workerResult.data?.status === "approved" && !mappedRoles.includes("worker")) mappedRoles.push("worker");
-
       if (!mappedRoles.includes("customer")) mappedRoles.unshift("customer");
       setProfile(resolvedProfile);
       setRoles(filterRolesForApp(mappedRoles) as AppRole[]);
