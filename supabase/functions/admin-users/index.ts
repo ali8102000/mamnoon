@@ -915,6 +915,7 @@ Deno.serve(async (req: Request) => {
 
       let notificationSent = false;
       let pushSent = 0;
+      let pushQueued = 0;
       if (["approved", "rejected", "suspended"].includes(body.status)) {
         const { data: profile } = await admin.from("profiles").select("full_name").eq("id", body.user_id).maybeSingle();
         const personName = String(profile?.full_name ?? "").trim();
@@ -933,10 +934,10 @@ Deno.serve(async (req: Request) => {
             ? `أهلاً ${personName || "بك"}، نعتذر عن عدم قبول طلبك حالياً. سبب الرفض: ${reason}. يرجى معالجة الملاحظة وإعادة المحاولة، ونتمنى لك التوفيق. ${companyName} الموثّقة.`
             : `أهلاً ${personName || "بك"}، نود إعلامك بأنه تم تعليق حسابك كـ${providerLabel} ${body.suspension_duration === "permanent" ? "بشكل دائم" : `لمدة ${durationLabels[body.suspension_duration] ?? "محددة"}`}${suspendedUntil ? `, وينتهي التعليق بتاريخ ${new Date(suspendedUntil).toLocaleString("ar-IQ")}` : ""}.${reason ? ` السبب: ${reason}.` : ""} للاستفسار يرجى مراسلة إدارة ${companyName}.`;
         const notificationType = body.status === "approved" ? "provider_approved" : body.status === "rejected" ? "provider_rejected" : "provider_suspended";
-        const { error: notificationError } = await admin.from("notifications").insert({
+        const { data: notificationRow, error: notificationError } = await admin.from("notifications").insert({
           user_id: body.user_id, type: notificationType, title, body: messageBody, link: "/home",
           data: { provider_type: body.type, status: body.status, suspended_until: suspendedUntil, company: companyName },
-        });
+        }).select("id").single();
         if (notificationError) {
           // Provider approval is already committed; notification delivery must not
           // turn a successful status change into a misleading non-2xx failure.
@@ -945,46 +946,68 @@ Deno.serve(async (req: Request) => {
           notificationSent = true;
         }
 
-        const { data: pushRows, error: pushRowsError } = await admin.from("user_push_tokens")
-          .select("expo_push_token,sound_enabled,vibration_enabled").eq("user_id", body.user_id);
-        if (pushRowsError) {
-          // Push preferences are optional and must not roll back/report failure
-          // after the provider status and role have been successfully updated.
-          console.warn("[admin-users] provider push preferences load failed", pushRowsError);
+        // The notifications INSERT trigger enqueues a durable push-delivery row
+        // and processes it with retry/receipt handling. Prefer that pipeline to
+        // avoid sending the same approval twice. Keep direct Expo delivery only
+        // as a fallback if the outbox trigger is unavailable.
+        let useDirectPushFallback = !!notificationError || !notificationRow?.id;
+        if (!useDirectPushFallback) {
+          const { count: outboxCount, error: outboxError } = await admin
+            .from("push_delivery_outbox")
+            .select("id", { count: "exact", head: true })
+            .eq("notification_id", notificationRow.id);
+          if (outboxError) {
+            console.warn("[admin-users] provider push outbox lookup failed; using direct fallback", outboxError);
+            useDirectPushFallback = true;
+          } else if ((outboxCount ?? 0) > 0) {
+            pushQueued = outboxCount ?? 0;
+          } else {
+            useDirectPushFallback = true;
+          }
         }
-        const tokens = (pushRows ?? []).filter((row: any) =>
-          typeof row.expo_push_token === "string" &&
-          (row.expo_push_token.startsWith("ExpoPushToken[") || row.expo_push_token.startsWith("ExponentPushToken[")),
-        );
-        for (let i = 0; i < tokens.length; i += 100) {
-          const messages = tokens.slice(i, i + 100).map((row: any) => {
-            const soundEnabled = row.sound_enabled !== false;
-            const vibrationEnabled = row.vibration_enabled !== false;
-            return {
-              to: row.expo_push_token,
-              sound: soundEnabled ? "default" : null,
-              title,
-              body: messageBody,
-              data: { type: "provider_verification", provider_type: body.type, status: body.status },
-              channelId: notificationChannelId(soundEnabled, vibrationEnabled),
-            };
-          });
-          try {
-            const response = await fetch("https://exp.host/--/api/v2/push/send", {
-              method: "POST",
-              headers: { Accept: "application/json", "Content-Type": "application/json" },
-              body: JSON.stringify(messages),
+
+        if (useDirectPushFallback) {
+          const { data: pushRows, error: pushRowsError } = await admin.from("user_push_tokens")
+            .select("expo_push_token,sound_enabled,vibration_enabled").eq("user_id", body.user_id);
+          if (pushRowsError) {
+            // Push preferences are optional and must not roll back/report failure
+            // after the provider status and role have been successfully updated.
+            console.warn("[admin-users] provider push preferences load failed", pushRowsError);
+          }
+          const tokens = (pushRows ?? []).filter((row: any) =>
+            typeof row.expo_push_token === "string" &&
+            (row.expo_push_token.startsWith("ExpoPushToken[") || row.expo_push_token.startsWith("ExponentPushToken[")),
+          );
+          for (let i = 0; i < tokens.length; i += 100) {
+            const messages = tokens.slice(i, i + 100).map((row: any) => {
+              const soundEnabled = row.sound_enabled !== false;
+              const vibrationEnabled = row.vibration_enabled !== false;
+              return {
+                to: row.expo_push_token,
+                sound: soundEnabled ? "default" : null,
+                title,
+                body: messageBody,
+                data: { type: "provider_verification", provider_type: body.type, status: body.status },
+                channelId: notificationChannelId(soundEnabled, vibrationEnabled),
+              };
             });
-            if (response.ok) {
-              const payload = await response.json() as { data?: Array<{ status?: string }> };
-              pushSent += (payload.data ?? []).filter((ticket) => ticket.status === "ok").length;
+            try {
+              const response = await fetch("https://exp.host/--/api/v2/push/send", {
+                method: "POST",
+                headers: { Accept: "application/json", "Content-Type": "application/json" },
+                body: JSON.stringify(messages),
+              });
+              if (response.ok) {
+                const payload = await response.json() as { data?: Array<{ status?: string }> };
+                pushSent += (payload.data ?? []).filter((ticket) => ticket.status === "ok").length;
+              }
+            } catch (pushError) {
+              console.warn("[admin-users] provider push delivery failed", pushError);
             }
-          } catch (pushError) {
-            console.warn("[admin-users] provider push delivery failed", pushError);
           }
         }
       }
-      return json({ ok: true, role: body.status === "approved" ? role : null, notification_sent: notificationSent, push_sent: pushSent });
+      return json({ ok: true, role: body.status === "approved" ? role : null, notification_sent: notificationSent, push_sent: pushSent, push_queued: pushQueued });
     }
 
     if (body.action === "cancel_request") {
