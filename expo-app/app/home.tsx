@@ -59,10 +59,9 @@ type IncomingRequest = {
 };
 
 export default function HomeScreen() {
-  const { user, profile, roles, activeRole } = useAuth();
-  const selectedRole = activeRole && roles.includes(activeRole)
-    ? activeRole
-    : roles.includes("customer") ? "customer" : roles[0] || "customer";
+  const { user, profile, roles } = useAuth();
+  // The customer app is a partner marketplace; provider role switching is disabled.
+  const selectedRole = "customer";
   const { resolved: resolvedTheme, setMode } = useThemePreference();
   const { companyName, logoUrl: companyLogoUrl, welcomeMessage, homeVisualUrl, homeVisualAnimated, homeVisualEnabled, homeVisualWidthPx, homeVisualHeightPx, homeVisualPosition, homeVisualLinkUrl } = useCompanyBranding();
 
@@ -456,6 +455,9 @@ export default function HomeScreen() {
           <TouchableOpacity onPress={() => void setMode(resolvedTheme === "dark" ? "light" : "dark")} accessibilityRole="button" accessibilityLabel="تبديل الوضع" style={styles.themeToggle}>
             <HomeGlyph name={resolvedTheme === "dark" ? "sun" : "moon"} color={palette.ink} size={20} />
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/account-settings")} accessibilityRole="button" accessibilityLabel="الإعدادات" style={styles.themeToggle}>
+            <Text style={{ fontSize: 21 }}>⚙️</Text>
+          </TouchableOpacity>
           <NotificationsBell />
         </View>
       </View>
@@ -659,7 +661,7 @@ function CustomerHome({ userId, homeVisualUrl, homeVisualAnimated, homeVisualEna
       type: "taxi" as const,
       vehicle: "large" as const,
     },
-  ];
+  ].filter(() => false);
 
   return (
     <View style={{ paddingHorizontal: 12, paddingTop: 16, gap: gridGap }}>
