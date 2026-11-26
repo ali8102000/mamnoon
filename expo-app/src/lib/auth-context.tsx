@@ -342,8 +342,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    let initialSessionEventSeen = false;
     const pendingProfileTimers = new Set<ReturnType<typeof setTimeout>>();
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      const isInitialSessionEvent = event === "INITIAL_SESSION";
+      if (isInitialSessionEvent) initialSessionEventSeen = true;
       authRevision.current += 1;
       setSession(nextSession);
       const nextUserId = nextSession?.user.id ?? null;
@@ -354,7 +357,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastUserId.current = nextUserId;
         const timer = setTimeout(() => {
           pendingProfileTimers.delete(timer);
-          if (active) void loadProfile(nextUserId);
+          if (!active) return;
+          void loadProfile(nextUserId)
+            .catch((error) => console.warn("[auth] Could not load the account after an auth event:", error))
+            .finally(() => {
+              if (active && isInitialSessionEvent) setLoading(false);
+            });
         }, 0);
         pendingProfileTimers.add(timer);
       } else {
@@ -363,6 +371,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRoles([]);
         setActiveRoleState(null);
         void clearCachedAuthProfile(previousId);
+        if (isInitialSessionEvent) setLoading(false);
       }
     });
 
@@ -384,7 +393,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (uid) await loadProfile(uid);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active && !initialSessionEventSeen) setLoading(false);
       });
 
     return () => {
