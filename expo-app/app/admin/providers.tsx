@@ -291,19 +291,23 @@ export default function AdminProvidersScreen() {
             </>}
           </View>
         ))}
-        <Text style={s.title}>طلبات تحديث بيانات المركبات</Text>
-        <Text style={s.muted}>التحديثات تبقى غير مفعّلة إلى أن تراجعها الإدارة وتوافق عليها.</Text>
+        <Text style={s.title}>طلبات تحديث بيانات مقدمي الخدمة</Text>
+        <Text style={s.muted}>تحديثات البيانات والمركبات لا تُعتمد إلا بعد مراجعة الإدارة والموافقة عليها.</Text>
         {changeRequests.length === 0 ? <Text style={s.empty}>ماكو طلبات تحديث معلّقة حالياً</Text> : changeRequests.map((request) => {
           const update = request.requested_data?.vehicle_update ?? {};
+          const profileUpdate = request.requested_data?.profile_update ?? {};
           const providerLabel = request.provider_type === "worker" ? "فني" : request.provider_type === "large_driver" ? "ناقل" : "كابتن";
           return <View key={request.id} style={s.card}>
             <Text style={s.name}>{request.profiles?.full_name || "مقدم خدمة"} · {providerLabel}</Text>
             <Text style={s.phone}>{request.profiles?.phone || "لا يوجد رقم هاتف"}</Text>
-            <Info label="الماركة" value={update.vehicle_make}/>
-            <Info label="الموديل" value={update.vehicle_model}/>
-            <Info label="سنة الصنع" value={update.vehicle_year}/>
-            <Info label="رقم اللوحة" value={update.vehicle_plate}/>
-            <Info label="اللون" value={update.vehicle_color}/>
+            {!!profileUpdate.full_name && <Info label="الاسم المطلوب اعتماده" value={profileUpdate.full_name}/>}
+            {!!request.requested_data?.vehicle_update && <>
+              <Info label="الماركة" value={update.vehicle_make}/>
+              <Info label="الموديل" value={update.vehicle_model}/>
+              <Info label="سنة الصنع" value={update.vehicle_year}/>
+              <Info label="رقم اللوحة" value={update.vehicle_plate}/>
+              <Info label="اللون" value={update.vehicle_color}/>
+            </>}
             {request.requested_data?.vehicle_category && <Info label="الفئة المطلوبة" value={request.requested_data.vehicle_category}/>}
             {request.requested_data?.vehicle_type && <Info label="نوع المركبة" value={request.requested_data.vehicle_type}/>}
             <Text style={s.statusPill}>بانتظار المراجعة</Text>
@@ -341,7 +345,7 @@ export default function AdminProvidersScreen() {
       <Modal visible={!!changeTarget} transparent animationType="fade" onRequestClose={() => setChangeTarget(null)}>
         <View style={s.overlay}>
           <View style={s.modalCard}>
-            <Text style={s.modalTitle}>رفض تحديث بيانات المركبة</Text>
+            <Text style={s.modalTitle}>رفض تحديث بيانات مقدم الخدمة</Text>
             <Text style={s.muted}>{changeTarget?.profiles?.full_name || "مقدم الخدمة"}</Text>
             <Text style={s.modalLabel}>سبب الرفض (مطلوب)</Text>
             <TextInput value={changeReason} onChangeText={setChangeReason} maxLength={500} multiline textAlign="right" placeholder="اكتب سبب الرفض حتى يتمكن من تصحيح البيانات..." placeholderTextColor={palette.muted} style={s.reasonInput}/>
