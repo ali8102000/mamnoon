@@ -140,7 +140,7 @@ export default function AuthScreen() {
         .from("user_roles")
         .select("role")
         .eq("user_id", userId)
-        .eq("role", "admin")
+        .in("role", ["admin", "super_admin"])
         .maybeSingle();
 
       if (roleError || !adminRole) {
