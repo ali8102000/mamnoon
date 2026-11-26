@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { palette, radius, space } from "@/styles/theme";
 import { isNotificationSoundEnabled, isNotificationVibrationEnabled, loadNotificationPreferences, setNotificationPreferences } from "@/lib/notification-sound";
 
-const IMPORTANT_NOTIFICATION_TYPES = /^(support_message|provider_approved|provider_rejected|provider_suspended|coupon_received|coupon_redeemed|announcement|company_announcement|admin_alert|security_alert|account_verified|verification_approved|subscription_expiring|subscription_expired|subscription_granted|subscription_admin_updated|subscription_extended|urgent_request|mission_assigned|mission_reward_pending|mission_reward_approved|mission_reward_rejected)$/i;
+const IMPORTANT_NOTIFICATION_TYPES = /^(support_message|provider_approved|provider_rejected|provider_suspended|coupon_received|coupon_redeemed|announcement|company_announcement|admin_alert|security_alert|account_verified|verification_approved|subscription_expiring|subscription_expired|subscription_granted|subscription_admin_updated|subscription_extended|urgent_request|mission_assigned|mission_reward_pending|mission_reward_approved|mission_reward_rejected|large_vehicle_price_offer)$/i;
 
 function isImportantNotificationType(type: string) {
   return IMPORTANT_NOTIFICATION_TYPES.test(type);
@@ -69,7 +69,7 @@ export function NotificationsBell() {
       // Remote push is delivered by the server outbox while the app is backgrounded.
       // Do not synthesize a second local alert from polling; it caused duplicate sounds.
             setItems(merged);
-      setFeatured(current=>current&&!current.read_at?current:merged.find((item:NotificationRow)=>!item.read_at&&(item.type==="subscription_granted"||item.type==="company_announcement"))??null);
+      setFeatured(current=>current&&!current.read_at?current:merged.find((item:NotificationRow)=>!item.read_at&&(item.type==="subscription_granted"||item.type==="company_announcement"||item.type==="large_vehicle_price_offer"))??null);
     }
   }, [user?.id]);
 
@@ -134,10 +134,10 @@ export function NotificationsBell() {
         <View style={styles.featuredScrim}>
           <View style={styles.featuredCard}>
             <View style={styles.featuredSeal}><Text style={styles.featuredSealText}>✦</Text></View>
-            <Text style={styles.featuredKicker}>رسالة رسمية · شركة ممنون</Text>
+            <Text style={styles.featuredKicker}>{featured?.type === "large_vehicle_price_offer" ? "عرض سعر جديد لطلبك" : "رسالة رسمية · شركة ممنون"}</Text>
             <Text style={styles.featuredTitle}>{featured?.title}</Text>
             <Text style={styles.featuredBody}>{featured?.body}</Text>
-            <TouchableOpacity onPress={dismissFeatured} style={styles.featuredButton}><Text style={styles.featuredButtonText}>استلمت الرسالة</Text></TouchableOpacity>
+            <TouchableOpacity onPress={featured?.type === "large_vehicle_price_offer" ? async () => { const link = featured.link; await dismissFeatured(); if (link?.startsWith("/request/")) router.push({ pathname: "/request/[id]", params: { id: link.split("/").pop() || "" } }); } : dismissFeatured} style={styles.featuredButton}><Text style={styles.featuredButtonText}>{featured?.type === "large_vehicle_price_offer" ? "مشاهدة عرض السعر" : "استلمت الرسالة"}</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
