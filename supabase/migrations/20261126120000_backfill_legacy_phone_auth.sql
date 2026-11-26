@@ -7,7 +7,7 @@ BEGIN
     FROM public.profiles p
     JOIN auth.users u ON u.id = p.id
     WHERE u.phone IS NULL
-      AND p.phone ~ '^\\+9647[0-9]{9}$'
+      AND p.phone ~ '^\+9647[0-9]{9}$'
       AND EXISTS (
         SELECT 1 FROM auth.users other
         WHERE other.phone = p.phone AND other.id <> u.id
@@ -26,7 +26,7 @@ SET phone = p.phone,
 FROM public.profiles p
 WHERE p.id = u.id
   AND u.phone IS NULL
-  AND p.phone ~ '^\\+9647[0-9]{9}$'
+  AND p.phone ~ '^\+9647[0-9]{9}$'
   AND (SELECT count(*) FROM public.profiles duplicate WHERE duplicate.phone = p.phone) = 1
   AND NOT EXISTS (
     SELECT 1 FROM auth.users other
