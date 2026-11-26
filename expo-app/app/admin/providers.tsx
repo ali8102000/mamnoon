@@ -66,6 +66,10 @@ export default function AdminProvidersScreen() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
+  const [changeRequests, setChangeRequests] = useState<any[]>([]);
+  const [changeTarget, setChangeTarget] = useState<any | null>(null);
+  const [changeReason, setChangeReason] = useState("");
+  const [changeBusyId, setChangeBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
@@ -84,6 +88,11 @@ export default function AdminProvidersScreen() {
       if (data?.error) throw new Error(data.error);
       setProviders(data?.providers ?? []);
       setTotal(data?.total ?? data?.providers?.length ?? 0);
+      const { data: changesData, error: changesError } = await supabase.functions.invoke("admin-users", {
+        body: { action: "provider_change_requests" },
+      });
+      if (!changesError && !changesData?.error) setChangeRequests(changesData?.requests ?? []);
+      else setChangeRequests([]);
     } catch (e: any) {
       setError(String(e?.message || "تعذر تحميل مقدمي الخدمة"));
       setProviders([]);
@@ -147,6 +156,46 @@ export default function AdminProvidersScreen() {
       Alert.alert("تعذر تحديث الحالة", String(e?.message || "حاول مرة ثانية"));
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const reviewVehicleChange = (request: any, status: "approved" | "rejected") => {
+    if (status === "rejected") {
+      setChangeTarget(request);
+      setChangeReason("");
+      return;
+    }
+    Alert.alert("الموافقة على تحديث المركبة", "بعد الموافقة تتحدث بيانات المركبة المعتمدة لهذا الحساب.", [
+      { text: "رجوع", style: "cancel" },
+      { text: "موافقة", onPress: () => void submitVehicleChangeReview(request, "approved") },
+    ]);
+  };
+
+  const submitVehicleChangeReview = async (request: any, status: "approved" | "rejected") => {
+    if (status === "rejected" && !changeReason.trim()) {
+      Alert.alert("سبب الرفض مطلوب", "اكتب سبباً واضحاً حتى يصل لمقدم الخدمة.");
+      return;
+    }
+    setChangeBusyId(request.id);
+    try {
+      const { data, error: callError } = await supabase.functions.invoke("admin-users", {
+        body: {
+          action: "review_provider_change_request",
+          request_id: request.id,
+          status,
+          ...(status === "rejected" ? { reason: changeReason.trim() } : {}),
+        },
+      });
+      if (callError) throw new Error(callError.message || "تعذر الاتصال بخدمة مراجعة التحديثات");
+      if (data?.error) throw new Error(data.error);
+      setChangeTarget(null);
+      setChangeReason("");
+      await load();
+      Alert.alert("تم", status === "approved" ? "تم اعتماد تحديث المركبة وإشعار صاحب الحساب." : "تم رفض التحديث وإرسال السبب لصاحب الحساب.");
+    } catch (error: any) {
+      Alert.alert("تعذر إكمال المراجعة", String(error?.message || "حاول مرة ثانية."));
+    } finally {
+      setChangeBusyId(null);
     }
   };
 
@@ -242,6 +291,32 @@ export default function AdminProvidersScreen() {
             </>}
           </View>
         ))}
+        <Text style={s.title}>طلبات تحديث بيانات مقدمي الخدمة</Text>
+        <Text style={s.muted}>تحديثات البيانات والمركبات لا تُعتمد إلا بعد مراجعة الإدارة والموافقة عليها.</Text>
+        {changeRequests.length === 0 ? <Text style={s.empty}>ماكو طلبات تحديث معلّقة حالياً</Text> : changeRequests.map((request) => {
+          const update = request.requested_data?.vehicle_update ?? {};
+          const profileUpdate = request.requested_data?.profile_update ?? {};
+          const providerLabel = request.provider_type === "worker" ? "فني" : request.provider_type === "large_driver" ? "ناقل" : "كابتن";
+          return <View key={request.id} style={s.card}>
+            <Text style={s.name}>{request.profiles?.full_name || "مقدم خدمة"} · {providerLabel}</Text>
+            <Text style={s.phone}>{request.profiles?.phone || "لا يوجد رقم هاتف"}</Text>
+            {!!profileUpdate.full_name && <Info label="الاسم المطلوب اعتماده" value={profileUpdate.full_name}/>}
+            {!!request.requested_data?.vehicle_update && <>
+              <Info label="الماركة" value={update.vehicle_make}/>
+              <Info label="الموديل" value={update.vehicle_model}/>
+              <Info label="سنة الصنع" value={update.vehicle_year}/>
+              <Info label="رقم اللوحة" value={update.vehicle_plate}/>
+              <Info label="اللون" value={update.vehicle_color}/>
+            </>}
+            {request.requested_data?.vehicle_category && <Info label="الفئة المطلوبة" value={request.requested_data.vehicle_category}/>}
+            {request.requested_data?.vehicle_type && <Info label="نوع المركبة" value={request.requested_data.vehicle_type}/>}
+            <Text style={s.statusPill}>بانتظار المراجعة</Text>
+            <View style={s.actions}>
+              <TouchableOpacity disabled={changeBusyId === request.id} onPress={() => reviewVehicleChange(request, "approved")} style={s.approveButton}><Text style={s.actionText}>موافقة على التحديث</Text></TouchableOpacity>
+              <TouchableOpacity disabled={changeBusyId === request.id} onPress={() => reviewVehicleChange(request, "rejected")} style={s.rejectButton}><Text style={s.actionText}>رفض مع السبب</Text></TouchableOpacity>
+            </View>
+          </View>;
+        })}
         {!canManage && <Text style={s.footnote}>يمكنك مراجعة المستندات. اعتماد الحساب أو رفضه أو تعليقه محصور بصلاحية المدير.</Text>}
       </ScrollView>
       <Modal visible={!!actionTarget} transparent animationType="fade" onRequestClose={() => setActionTarget(null)}>
@@ -263,6 +338,20 @@ export default function AdminProvidersScreen() {
             <View style={s.modalActions}>
               <TouchableOpacity onPress={() => setActionTarget(null)} style={s.cancelButton}><Text style={s.cancelText}>رجوع</Text></TouchableOpacity>
               <TouchableOpacity disabled={!!busyId} onPress={confirmProviderAction} style={s.confirmButton}><Text style={s.actionText}>{busyId ? "جاري التنفيذ..." : actionStatus === "rejected" ? "تأكيد الرفض" : "تأكيد التعليق"}</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={!!changeTarget} transparent animationType="fade" onRequestClose={() => setChangeTarget(null)}>
+        <View style={s.overlay}>
+          <View style={s.modalCard}>
+            <Text style={s.modalTitle}>رفض تحديث بيانات مقدم الخدمة</Text>
+            <Text style={s.muted}>{changeTarget?.profiles?.full_name || "مقدم الخدمة"}</Text>
+            <Text style={s.modalLabel}>سبب الرفض (مطلوب)</Text>
+            <TextInput value={changeReason} onChangeText={setChangeReason} maxLength={500} multiline textAlign="right" placeholder="اكتب سبب الرفض حتى يتمكن من تصحيح البيانات..." placeholderTextColor={palette.muted} style={s.reasonInput}/>
+            <View style={s.modalActions}>
+              <TouchableOpacity onPress={() => setChangeTarget(null)} style={s.cancelButton}><Text style={s.cancelText}>رجوع</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!!changeBusyId} onPress={() => changeTarget && void submitVehicleChangeReview(changeTarget, "rejected")} style={s.confirmButton}><Text style={s.actionText}>{changeBusyId ? "جاري التنفيذ..." : "تأكيد الرفض"}</Text></TouchableOpacity>
             </View>
           </View>
         </View>

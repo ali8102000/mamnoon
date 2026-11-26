@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRef } from "react";
 import { Animated, Easing, PanResponder } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, Redirect } from "expo-router";
+import { APP_VARIANT } from "@/lib/app-variant";
 import {
   View,
   Text,
@@ -59,10 +60,13 @@ type IncomingRequest = {
 };
 
 export default function HomeScreen() {
-  const { user, profile, roles, activeRole } = useAuth();
-  const selectedRole = activeRole && roles.includes(activeRole)
-    ? activeRole
-    : roles.includes("customer") ? "customer" : roles[0] || "customer";
+  return APP_VARIANT === "customer" ? <HomeScreenContent /> : <Redirect href="/account-settings" />;
+}
+
+function HomeScreenContent() {
+  const { user, profile, roles } = useAuth();
+  // The customer app is a partner marketplace; provider role switching is disabled.
+  const selectedRole: string = "customer";
   const { resolved: resolvedTheme, setMode } = useThemePreference();
   const { companyName, logoUrl: companyLogoUrl, welcomeMessage, homeVisualUrl, homeVisualAnimated, homeVisualEnabled, homeVisualWidthPx, homeVisualHeightPx, homeVisualPosition, homeVisualLinkUrl } = useCompanyBranding();
 
@@ -455,6 +459,9 @@ export default function HomeScreen() {
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={() => void setMode(resolvedTheme === "dark" ? "light" : "dark")} accessibilityRole="button" accessibilityLabel="تبديل الوضع" style={styles.themeToggle}>
             <HomeGlyph name={resolvedTheme === "dark" ? "sun" : "moon"} color={palette.ink} size={20} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/account-settings")} accessibilityRole="button" accessibilityLabel="الإعدادات" style={styles.themeToggle}>
+            <Text style={{ fontSize: 21 }}>⚙️</Text>
           </TouchableOpacity>
           <NotificationsBell />
         </View>
