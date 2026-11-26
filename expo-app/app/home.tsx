@@ -666,13 +666,13 @@ function CustomerHome({ userId, homeVisualUrl, homeVisualAnimated, homeVisualEna
       type: "taxi" as const,
       vehicle: "large" as const,
     },
-  ].filter(() => false);
+  ];
 
   return (
     <View style={{ paddingHorizontal: 12, paddingTop: 16, gap: gridGap }}>
       {homeVisualPosition === "above_banner" ? renderHomeVisual() : null}
       <View {...topBannerSwipeResponder.panHandlers} style={{ width: "100%" }}>
-      <TouchableOpacity activeOpacity={0.94} onPress={() => { if (suppressTopBannerPress.current) { suppressTopBannerPress.current = false; return; } if (topBanner?.target_campaign_id) setActiveBannerCampaignId(topBanner.target_campaign_id); }}>
+      <TouchableOpacity activeOpacity={0.94} onPress={() => { if (suppressTopBannerPress.current) { suppressTopBannerPress.current = false; return; } if (topBanner?.target_campaign_id) setActiveBannerCampaignId(topBanner.target_campaign_id); else router.push("/request/new"); }}>
       <LinearGradient
         colors={topBanner?.display_config?.background_color ? [topBanner.display_config.background_color, topBanner.display_config.background_color] : [palette.brand, palette.brandGlow, palette.gold]}
         start={{ x: 0, y: 0 }}
