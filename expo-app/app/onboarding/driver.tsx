@@ -464,7 +464,7 @@ export default function DriverOnboarding() {
       setChangedDocuments({});
       setRejectionReason(null);
       await refresh();
-      Alert.alert("تم إرسال الطلب", "وصل طلبك إلى إدارة " + companyName + " وهو الآن بانتظار الموافقة. لا يمكنك استقبال الرحلات قبل الاعتماد.");
+      Alert.alert("تم استلام طلبك", "لقد تلقينا طلبك بنجاح، وهو قيد المراجعة. سيتم إشعارك فور اتخاذ القرار، ويمكنك تحديث معلوماتك من شاشة الطلب.");
     } catch (err: unknown) {
       Alert.alert("تعذر إكمال التسجيل", err instanceof Error ? err.message : "حدث خطأ غير متوقع.");
     } finally {
