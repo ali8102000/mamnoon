@@ -89,7 +89,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
-          path = "expo-app/android/app/src/main/AndroidManifest.xml"
+          path = "android/app/src/main/AndroidManifest.xml"
           root = ET.parse(path).getroot()
           ns = "{http://schemas.android.com/apk/res/android}"
           found = False
