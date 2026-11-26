@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRef } from "react";
 import { Animated, Easing, PanResponder } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, Redirect } from "expo-router";
+import { APP_VARIANT } from "@/lib/app-variant";
 import {
   View,
   Text,
@@ -59,6 +60,10 @@ type IncomingRequest = {
 };
 
 export default function HomeScreen() {
+  return APP_VARIANT === "customer" ? <HomeScreenContent /> : <Redirect href="/account-settings" />;
+}
+
+function HomeScreenContent() {
   const { user, profile, roles } = useAuth();
   // The customer app is a partner marketplace; provider role switching is disabled.
   const selectedRole: string = "customer";
