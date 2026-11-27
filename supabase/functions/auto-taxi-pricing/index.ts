@@ -310,6 +310,7 @@ Deno.serve(async (req) => {
     distance_km:routed.distanceKm,duration_min:routed.durationMin,
     price_estimate:priceEstimate,is_intercity:isIntercity,trip_type:tripType,extra_minutes:extraMinutes,
     taxi_auto_percent:quotedAutoPercent,
+    regional_peak_percent:quotedRegionalPeakPercent,
     taxi_urgency_enabled:urgencyPercent>0,taxi_urgency_percent:urgencyPercent,taxi_peak_percent:peakPercent
   };
   const {data:created,error:createError}=await admin.from("service_requests").insert(insert).select("id,coupon_discount,customer_payable,price_estimate,distance_km,duration_min").single();
