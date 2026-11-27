@@ -213,6 +213,7 @@ Deno.serve(async (req: Request) => {
       const userId = body.user_id as string;
       const profileInput = body.profile && typeof body.profile === "object" && !Array.isArray(body.profile) ? body.profile : {};
       const driverInput = body.driver_profile && typeof body.driver_profile === "object" && !Array.isArray(body.driver_profile) ? body.driver_profile : {};
+      const naqilInput = body.naqil_profile && typeof body.naqil_profile === "object" && !Array.isArray(body.naqil_profile) ? body.naqil_profile : {};
       const workerInput = body.worker_profile && typeof body.worker_profile === "object" && !Array.isArray(body.worker_profile) ? body.worker_profile : {};
       const partnerInput = body.partner_profile && typeof body.partner_profile === "object" && !Array.isArray(body.partner_profile) ? body.partner_profile : {};
       const textValue = (value: unknown, max: number) => typeof value === "string" && value.trim().length <= max ? value.trim() : null;
@@ -293,7 +294,7 @@ Deno.serve(async (req: Request) => {
         driverUpdates.vehicle_year = year;
       }
       if (driverInput.vehicle_category !== undefined) {
-        if (!["economy","premium","luxury","large"].includes(driverInput.vehicle_category)) return json({ error: "invalid_vehicle_category" }, 400);
+        if (!["economy","premium","luxury"].includes(driverInput.vehicle_category)) return json({ error: "invalid_vehicle_category" }, 400);
         driverUpdates.vehicle_category = driverInput.vehicle_category;
       }
       if (driverInput.service_radius_km !== undefined) {
@@ -306,13 +307,13 @@ Deno.serve(async (req: Request) => {
         driverUpdates.available = driverInput.available;
       }
       if (Object.keys(driverUpdates).length) {
-        const { data: currentDriverProfile, error: currentDriverError } = await admin.from("driver_profiles")
-          .select("vehicle_category").eq("user_id", userId).maybeSingle();
+        const { error: currentDriverError } = await admin.from("driver_profiles")
+          .select("user_id").eq("user_id", userId).maybeSingle();
         if (currentDriverError) return json({ error: "driver_profile_lookup_failed" }, 500);
         driverUpdates.updated_at = new Date().toISOString();
         const { error } = await admin.from("driver_profiles").update(driverUpdates).eq("user_id", userId);
         if (error) return json({ error: "driver_profile_update_failed", detail: error.message }, 400);
-        const verificationType = currentDriverProfile?.vehicle_category === "large" ? "large_driver" : "driver";
+        const verificationType = "driver";
         const { data: verifications } = await admin.from("provider_verifications").select("provider_type,metadata")
           .eq("user_id", userId).eq("provider_type", verificationType);
         for (const verification of verifications ?? []) {
@@ -321,6 +322,50 @@ Deno.serve(async (req: Request) => {
           for (const [field, metaKey] of Object.entries(pairs)) if (driverUpdates[field] !== undefined) metadata[metaKey] = driverUpdates[field] === null ? "" : String(driverUpdates[field]);
           const { error: verificationUpdateError } = await admin.from("provider_verifications").update({ metadata, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("provider_type", verification.provider_type);
           if (verificationUpdateError) return json({ error: "vehicle_verification_sync_failed" }, 500);
+        }
+      }
+
+      const naqilAllowed = ["vehicle_make","vehicle_model","vehicle_plate","vehicle_color","vehicle_type"];
+      const naqilUpdates: Record<string, unknown> = {};
+      for (const key of naqilAllowed) if (naqilInput[key] !== undefined) {
+        const value = textValue(naqilInput[key], 100);
+        if (naqilInput[key] !== null && value === null) return json({ error: "invalid_naqil_field:" + key }, 400);
+        naqilUpdates[key] = value;
+      }
+      if (naqilInput.vehicle_year !== undefined) {
+        const year = naqilInput.vehicle_year === null || naqilInput.vehicle_year === "" ? null : Number(naqilInput.vehicle_year);
+        if (year !== null && (!Number.isInteger(year) || year < 1950 || year > new Date().getFullYear() + 1)) return json({ error: "invalid_naqil_vehicle_year" }, 400);
+        naqilUpdates.vehicle_year = year;
+      }
+      if (naqilInput.service_radius_km !== undefined) {
+        const value = Number(naqilInput.service_radius_km);
+        if (!Number.isInteger(value) || value < 1 || value > 300) return json({ error: "invalid_naqil_service_radius" }, 400);
+        naqilUpdates.service_radius_km = value;
+      }
+      if (naqilInput.available !== undefined) {
+        if (typeof naqilInput.available !== "boolean") return json({ error: "invalid_naqil_availability" }, 400);
+        naqilUpdates.available = naqilInput.available;
+      }
+      if (naqilInput.vehicle_category !== undefined && naqilInput.vehicle_category !== "large") {
+        return json({ error: "naqil_profile_category_is_fixed" }, 400);
+      }
+      if (Object.keys(naqilUpdates).length) {
+        const { data: currentNaqilProfile, error: currentNaqilError } = await admin.from("naqil_profiles")
+          .select("vehicle_category").eq("user_id", userId).maybeSingle();
+        if (currentNaqilError) return json({ error: "naqil_profile_lookup_failed" }, 500);
+        if (!currentNaqilProfile || currentNaqilProfile.vehicle_category !== "large") return json({ error: "naqil_profile_not_found" }, 404);
+        naqilUpdates.updated_at = new Date().toISOString();
+        const { error } = await admin.from("naqil_profiles").update(naqilUpdates).eq("user_id", userId);
+        if (error) return json({ error: "naqil_profile_update_failed", detail: error.message }, 400);
+        const { data: verifications } = await admin.from("provider_verifications").select("provider_type,metadata")
+          .eq("user_id", userId).eq("provider_type", "large_driver");
+        for (const verification of verifications ?? []) {
+          const metadata = { ...(verification.metadata ?? {}) };
+          const pairs: Record<string,string> = { vehicle_make:"vehicleMake", vehicle_model:"vehicleModel", vehicle_year:"vehicleYear", vehicle_plate:"vehiclePlate", vehicle_color:"vehicleColor", vehicle_type:"vehicleType" };
+          for (const [field, metaKey] of Object.entries(pairs)) if (naqilUpdates[field] !== undefined) metadata[metaKey] = naqilUpdates[field] === null ? "" : String(naqilUpdates[field]);
+          const { error: verificationUpdateError } = await admin.from("provider_verifications").update({ metadata, updated_at: new Date().toISOString() })
+            .eq("user_id", userId).eq("provider_type", verification.provider_type);
+          if (verificationUpdateError) return json({ error: "naqil_verification_sync_failed" }, 500);
         }
       }
 
