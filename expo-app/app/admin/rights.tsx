@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { palette, radius, space } from "@/styles/theme";
@@ -49,7 +49,7 @@ export default function AdminRightsScreen(){
  if(authLoading||allowed===null)return <View style={s.center}><ActivityIndicator color={palette.brand}/><Text style={s.muted}>جارٍ التحقق من الصلاحية...</Text></View>;
  if(!allowed)return <View style={s.center}><Text style={s.title}>غير مصرّح</Text></View>;
  return <View style={s.page}><Stack.Screen options={{title:"حقوق ممنون"}}/>
-  <View style={s.header}><Text style={s.title}>حقوق ممنون</Text><Text style={s.muted}>المحافظ والعمولات والإعفاءات والإيرادات</Text></View>
+  <View style={s.header}><Text style={s.title}>حقوق ممنون</Text><Text style={s.muted}>المحافظ والعمولات والإعفاءات والإيرادات</Text><TouchableOpacity onPress={()=>router.push("/admin/peak-pricing")} style={s.primary}><Text style={s.primaryText}>إعدادات الذروة حسب المدينة والحي</Text></TouchableOpacity></View>
   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabs}>
    {([["wallet","المحفظة"],["special","ميزات خاصة"],["policies","إعدادات الاستقطاع"],["revenue","الإيرادات"]] as [Tab,string][]).map(([k,l])=><TouchableOpacity key={k} onPress={()=>setTab(k)} style={[s.tab,tab===k&&s.active]}><Text style={[s.tabText,tab===k&&s.activeText]}>{l}</Text></TouchableOpacity>)}
   </ScrollView>
