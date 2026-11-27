@@ -1578,19 +1578,40 @@ export default function RequestDetail() {
     if (!request || !isCustomer || urgencyBusy) return;
     setUrgencyBusy(true);
     try {
-      const { data, error } = await (supabase as any).rpc("apply_request_urgency", {
+      const { error } = await (supabase as any).rpc("apply_request_urgency", {
         _request_id: id,
         _multiplier: multiplier,
       });
       if (error) throw error;
-      const result = Array.isArray(data) ? data[0] : data;
-      Alert.alert("تم تفعيل الاستعجال", `تم رفع الأجر بنسبة ${Number(result?.urgency_percent ?? urgencyAdminPercent * multiplier)}٪ وأُبلغ المزوّدون بالزيادة.`);
       await loadRequest();
     } catch (error: any) {
-      Alert.alert("تعذر تفعيل الاستعجال", error?.message ?? "حاول مرة ثانية.");
+      Alert.alert("تعذر رفع السعر", error?.message ?? "حاول مرة ثانية.");
     } finally {
       setUrgencyBusy(false);
     }
+  }
+
+  async function cancelRequestUrgency() {
+    if (!request || !isCustomer || urgencyBusy) return;
+    setUrgencyBusy(true);
+    try {
+      const { error } = await (supabase as any).rpc("cancel_request_urgency", {
+        _request_id: id,
+      });
+      if (error) throw error;
+      await loadRequest();
+      Alert.alert("تم إلغاء رفع السعر", "رجعنا الأجرة إلى سعرها الأصلي، والطلب مستمر بدون إلغاء الرحلة.");
+    } catch (error: any) {
+      Alert.alert("تعذر إلغاء الرفع", error?.message ?? "حاول مرة ثانية.");
+    } finally {
+      setUrgencyBusy(false);
+    }
+  }
+
+  function handleRequestUrgencyPress() {
+    const currentMultiplier = Number(request?.urgency_multiplier ?? 1);
+    if (currentMultiplier <= 1) void applyRequestUrgency(2);
+    else if (currentMultiplier === 2) void applyRequestUrgency(3);
   }
 
   async function submitUserReport() {
@@ -1948,23 +1969,35 @@ export default function RequestDetail() {
                 ><Text style={{ color: "#FFFFFF", fontWeight: "900", textAlign: "center" }}>البحث عن الفنيين الباقين ({remainingPeopleCount})</Text></TouchableOpacity>
               </View>
             )}
-            {urgencyAllowed && Number(request.customer_price ?? request.price_estimate ?? 0) > 0 && <View style={{ width: "100%", marginTop: 8, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: palette.gold, backgroundColor: palette.goldSoft }}>
-              <Text style={{ color: palette.ink, fontSize: 14, fontWeight: "900", textAlign: "right" }}>⚡ وضع الاستعجال</Text>
-              <Text style={{ color: palette.muted, fontSize: 11, textAlign: "right", marginTop: 4 }}>نسبة الزيادة الأساسية من الإدارة: {urgencyAdminPercent}٪. اختر ×2 أو ×3 لرفع الأجر وتشجيع المزوّدين على قبول الطلب.</Text>
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                <TouchableOpacity disabled={urgencyBusy} onPress={() => void applyRequestUrgency(2)} style={{ flex: 1, borderRadius: 12, padding: 12, alignItems: "center", backgroundColor: palette.gold, opacity: urgencyBusy ? 0.5 : 1 }}><Text style={{ color: palette.brandDeep, fontWeight: "900" }}>×2 استعجال</Text></TouchableOpacity>
-                <TouchableOpacity disabled={urgencyBusy} onPress={() => void applyRequestUrgency(3)} style={{ flex: 1, borderRadius: 12, padding: 12, alignItems: "center", backgroundColor: palette.brand, opacity: urgencyBusy ? 0.5 : 1 }}><Text style={{ color: palette.white, fontWeight: "900" }}>×3 أقصى استعجال</Text></TouchableOpacity>
-              </View>
-              {Number(request.urgency_multiplier ?? 1) > 1 && <Text style={{ color: palette.success, fontSize: 11, fontWeight: "900", textAlign: "right", marginTop: 8 }}>مفعّل حالياً ×{request.urgency_multiplier} · زيادة {Number(request.urgency_percent ?? 0)}٪</Text>}
-            </View>}
-            {isCustomer && request.type === "taxi" && request.vehicle_category !== "large" && (
-              <View style={{ width: "100%", marginTop: 8, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.gold, backgroundColor: palette.surface }}>
-                {request.taxi_urgency_enabled ? (
-                  <Text style={{ color: palette.brand, textAlign: "right", fontWeight: "900" }}>⚡ وضع الاستعجال مفعّل — {Number(request.taxi_urgency_percent || 0)}٪</Text>
-                ) : (
-                  <TouchableOpacity onPress={enableTaxiUrgency} disabled={taxiUrgencyBusy} style={{ paddingVertical: 7, opacity: taxiUrgencyBusy ? 0.5 : 1 }}>
-                    <Text style={{ color: palette.brand, textAlign: "right", fontWeight: "900" }}>{taxiUrgencyBusy ? "جارٍ تفعيل الاستعجال..." : "⚡ تفعيل وضع الاستعجال أثناء البحث"}</Text>
-                    <Text style={{ color: palette.muted, textAlign: "right", fontSize: 10, marginTop: 3 }}>تُضاف الزيادة المحددة من الإدارة إلى الأجرة ويُعاد إرسال الطلب للسائقين</Text>
+            {urgencyAllowed && Number(request.customer_price ?? request.price_estimate ?? 0) > 0 && (
+              <View style={{ width: "100%", marginTop: 8, alignItems: "stretch" }}>
+                <TouchableOpacity
+                  disabled={urgencyBusy || Number(request.urgency_multiplier ?? 1) >= 3}
+                  onPress={handleRequestUrgencyPress}
+                  style={{
+                    minHeight: 42,
+                    paddingHorizontal: 14,
+                    paddingVertical: 9,
+                    borderRadius: 11,
+                    borderWidth: 1,
+                    borderColor: Number(request.urgency_multiplier ?? 1) > 1 ? palette.success : palette.gold,
+                    backgroundColor: Number(request.urgency_multiplier ?? 1) > 1 ? palette.goldSoft : palette.surface,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: urgencyBusy || Number(request.urgency_multiplier ?? 1) >= 3 ? 0.65 : 1,
+                  }}
+                >
+                  <Text style={{ color: palette.ink, fontSize: 13, fontWeight: "900" }}>
+                    {urgencyBusy ? "جارٍ تحديث السعر..." : Number(request.urgency_multiplier ?? 1) === 1 ? "رفع السعر" : Number(request.urgency_multiplier ?? 1) === 2 ? "رفع السعر مرة ثانية" : "تم رفع السعر"}
+                  </Text>
+                </TouchableOpacity>
+                {Number(request.urgency_multiplier ?? 1) > 1 && (
+                  <TouchableOpacity
+                    disabled={urgencyBusy}
+                    onPress={() => void cancelRequestUrgency()}
+                    style={{ alignSelf: "flex-end", paddingHorizontal: 10, paddingVertical: 7, marginTop: 3, opacity: urgencyBusy ? 0.5 : 1 }}
+                  >
+                    <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800" }}>إلغاء الرفع</Text>
                   </TouchableOpacity>
                 )}
               </View>
