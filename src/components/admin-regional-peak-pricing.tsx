@@ -148,7 +148,7 @@ export default function AdminRegionalPeakPricing() {
         <div className="text-xs">الفئة: <b>{categoryName(r.category_key,services)}</b> · الزيادة المقترحة: <b>{r.suggested_percent}%</b></div>
         <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4"><span>المتاحون: {r.active_providers}</span><span>GPS المرصود: {r.observed_providers}</span><span>الطلبات: {r.pending_requests}</span><span>طلب/متاح: {r.demand_per_provider}</span></div>
         <p className="text-xs text-muted-foreground">{r.reason}</p>
-        <p className="text-[10px] text-muted-foreground">الطقس: {String(r.weather?.condition_text||"غير متوفر")} · {r.weather?.temperature_c??"—"}° · مطر {r.weather?.rain_mm??"—"} ملم</p>
+        <p className="text-[10px] text-muted-foreground">الطقس: {String(r.weather?.condition_text||"غير متوفر")} · {String(r.weather?.temperature_c??"—")}° · مطر {String(r.weather?.rain_mm??"—")} ملم</p>
         <a target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${r.center_lat},${r.center_lng}`} className="inline-block text-xs font-bold text-primary underline">فتح موقع التوصية بالخريطة</a>
         <div className="flex gap-2 pt-1"><button disabled={deciding===r.id} onClick={()=>void decide(r.id,true)} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50"><Check className="ml-1 inline h-4 w-4"/> موافقة لمدة 30 دقيقة</button><button disabled={deciding===r.id} onClick={()=>void decide(r.id,false)} className="rounded-lg border border-red-300 px-4 py-2 text-xs font-black text-red-600 disabled:opacity-50"><X className="ml-1 inline h-4 w-4"/> رفض</button></div>
       </article>)}
