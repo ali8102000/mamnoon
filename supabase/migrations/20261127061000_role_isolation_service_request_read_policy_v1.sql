@@ -2,6 +2,7 @@
 -- Customers retain access to their own requests; team workers retain access
 -- only when they are members of that service request under the worker role.
 DROP POLICY IF EXISTS "Parties see own requests" ON public.service_requests;
+DROP POLICY IF EXISTS "Accepted service providers see request" ON public.service_requests;
 
 CREATE POLICY "Parties see own requests"
 ON public.service_requests
