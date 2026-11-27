@@ -480,7 +480,7 @@ Deno.serve(async (req: Request) => {
       } else if (Object.keys(applicationFields).length && !partnerBusinessProfileId) {
         return json({ error: "partner_application_id_required" }, 400);
       }
-      return json({ ok: true, profile: profileUpdates, driver_profile: driverUpdates, worker_profile: workerUpdates, partner_profile: partnerUpdates });
+      return json({ ok: true, profile: profileUpdates, driver_profile: driverUpdates, naqil_profile: naqilUpdates, worker_profile: workerUpdates, partner_profile: partnerUpdates });
     }
 
     if (body.action === "update_profile") {
