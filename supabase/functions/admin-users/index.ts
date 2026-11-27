@@ -579,13 +579,15 @@ Deno.serve(async (req: Request) => {
       // Keep it global-only; regional staff must not infer other governorates.
       await requireGlobalAnalytics();
       const [
-        usersRes, driversRes, workersRes, activeDriversRes, activeWorkersRes,
+        usersRes, driversRes, naqilsRes, workersRes, activeDriversRes, activeNaqilsRes, activeWorkersRes,
         reqAllRes, reqActiveRes, reqDoneRes, reqCancelledRes, todayTxRes, monthTxRes, yearTxRes,
       ] = await Promise.all([
         admin.from("profiles").select("id", { count: "exact", head: true }),
         admin.from("driver_profiles").select("id", { count: "exact", head: true }),
+        admin.from("naqil_profiles").select("id", { count: "exact", head: true }),
         admin.from("worker_profiles").select("id", { count: "exact", head: true }),
         admin.from("driver_profiles").select("id", { count: "exact", head: true }).eq("available", true),
+        admin.from("naqil_profiles").select("id", { count: "exact", head: true }).eq("available", true),
         admin.from("worker_profiles").select("id", { count: "exact", head: true }).eq("available", true),
         admin.from("service_requests").select("id", { count: "exact", head: true }),
         admin.from("service_requests").select("id", { count: "exact", head: true })
@@ -605,8 +607,10 @@ Deno.serve(async (req: Request) => {
       return json({
         totalUsers: usersRes.count ?? 0,
         totalDrivers: driversRes.count ?? 0,
+        totalCarriers: naqilsRes.count ?? 0,
         totalWorkers: workersRes.count ?? 0,
         activeDrivers: activeDriversRes.count ?? 0,
+        activeCarriers: activeNaqilsRes.count ?? 0,
         activeWorkers: activeWorkersRes.count ?? 0,
         totalRequests: reqAllRes.count ?? 0,
         activeRequests: reqActiveRes.count ?? 0,
@@ -667,11 +671,12 @@ Deno.serve(async (req: Request) => {
       const staffScope = await getStaffScope();
       if (staffScope.scopeType === "governorate" && staffScope.scopeGovernorate !== governorate) throw new Error("permission_required:users.read");
       await requireScopedReadPermission("users.read", "has_user_moderation_access", staffScope.scopeType, staffScope.scopeGovernorate);
-      const [profile, roles, block, driver, worker, transactions, requests, ratings, verifications, partnerBusinesses, partnerApplications, workerServices, availableServices] = await Promise.all([
+      const [profile, roles, block, driver, naqil, worker, transactions, requests, ratings, verifications, partnerBusinesses, partnerApplications, workerServices, availableServices] = await Promise.all([
         admin.from("profiles").select("*").eq("id", id).maybeSingle(),
         admin.from("user_roles").select("role,created_at").eq("user_id", id),
         admin.from("user_blocks").select("*").eq("user_id", id).maybeSingle(),
         admin.from("driver_profiles").select("*").eq("user_id", id).maybeSingle(),
+        admin.from("naqil_profiles").select("*").eq("user_id", id).maybeSingle(),
         admin.from("worker_profiles").select("*").eq("user_id", id).maybeSingle(),
         admin.from("transactions").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(20),
         admin.from("service_requests").select("id,type,status,created_at,price_estimate")
@@ -685,7 +690,7 @@ Deno.serve(async (req: Request) => {
         admin.from("worker_services").select("service_id").eq("worker_id", id),
         admin.from("services").select("id,name_ar").order("sort_order", { ascending: true }).limit(200),
       ]);
-      const failed = [profile, roles, block, driver, worker, transactions, requests, verifications, partnerBusinesses, partnerApplications, workerServices, availableServices].find((r: any) => r.error);
+      const failed = [profile, roles, block, driver, naqil, worker, transactions, requests, verifications, partnerBusinesses, partnerApplications, workerServices, availableServices].find((r: any) => r.error);
       if (failed?.error) return json({ error: "user_detail_load_failed" }, 500);
       const signedVerifications = await Promise.all((verifications.data ?? []).map(async (row: any) => {
         const sign = async (path: string | null) => {
