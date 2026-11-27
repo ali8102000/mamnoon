@@ -10,8 +10,14 @@ type Collection = { id:string; payment_id:string; amount_iqd:number; provider_re
 type Revenue = { id:string; user_id:string; request_code?:string|null; revenue_type:string; assessed_iqd:number; collected_iqd:number; waived_iqd:number; status:string; metadata?:Record<string,any>; created_at:string; profile?:{full_name?:string|null;phone?:string|null}|null };
 
 const durations = [{value:"1",label:"يوم"},{value:"7",label:"أسبوع"},{value:"30",label:"شهر"},{value:"90",label:"٣ أشهر"},{value:"180",label:"٦ أشهر"},{value:"365",label:"سنة"},{value:"permanent",label:"دائم"}];
-const roles = [{value:"driver",label:"أصحاب التكسي"},{value:"large_driver",label:"التكسي الكبير"},{value:"worker",label:"الفنيون"},{value:"restaurant",label:"المطاعم"},{value:"hotel",label:"الفنادق"},{value:"store",label:"المتاجر"}];
-const governorates = ["baghdad","basra","nineveh","erbil","sulaymaniyah","duhok","kirkuk","najaf","karbala","babil","anbar","diyala","saladin","wasit","dhiqar","maysan","muthanna","qadisiyah"];
+const COMMISSION_CATEGORIES=[
+ {role:"driver",label:"التكسي الاعتيادي",event:"taxi_acceptance"},
+ {role:"large_driver",label:"الكيات والسيارات الكبيرة",event:"taxi_acceptance"},
+ {role:"worker",label:"الفنيون ومقدمو الخدمات",event:"service_acceptance"},
+ {role:"restaurant",label:"المطاعم",event:"order_acceptance"},
+ {role:"hotel",label:"الفنادق",event:"order_acceptance"},
+ {role:"store",label:"المتاجر",event:"order_acceptance"},
+] as const;
 const govLabels:Record<string,string>={baghdad:"بغداد",basra:"البصرة",nineveh:"نينوى",erbil:"أربيل",sulaymaniyah:"السليمانية",duhok:"دهوك",kirkuk:"كركوك",najaf:"النجف",karbala:"كربلاء",babil:"بابل",anbar:"الأنبار",diyala:"ديالى",saladin:"صلاح الدين",wasit:"واسط",dhiqar:"ذي قار",maysan:"ميسان",muthanna:"المثنى",qadisiyah:"القادسية"};
 
 export default function AdminRights() {
@@ -20,9 +26,7 @@ export default function AdminRights() {
   const [amount,setAmount]=useState(""); const [note,setNote]=useState(""); const [kind,setKind]=useState<"debit"|"credit">("debit");
   const [chargePercent,setChargePercent]=useState("0"); const [duration,setDuration]=useState("30"); const [overrideReason,setOverrideReason]=useState("إعفاء أو تخفيض عمولة بموافقة الإدارة");
   const [policies,setPolicies]=useState<Policy[]>([]); const [overrides,setOverrides]=useState<Override[]>([]); const [revenue,setRevenue]=useState<Revenue[]>([]); const [collections,setCollections]=useState<Collection[]>([]); const [summary,setSummary]=useState<any>({});
-  const [scope,setScope]=useState("global"); const [scopeKey,setScopeKey]=useState("");
-  const [commissionRate,setCommissionRate]=useState("0"); const [commissionCharge,setCommissionCharge]=useState("100");
-  const [event,setEvent]=useState("taxi_acceptance"); const [trialEnabled,setTrialEnabled]=useState(false); const [trialDays,setTrialDays]=useState("30"); const [policyEnabled,setPolicyEnabled]=useState(false);
+  const [commissionRates,setCommissionRates]=useState<Record<string,string>>({driver:"0",large_driver:"0",worker:"0",restaurant:"0",hotel:"0",store:"0"});
   const [busy,setBusy]=useState(false); const [loading,setLoading]=useState(false); const [error,setError]=useState("");
   const [refundCases,setRefundCases]=useState<any[]>([]);
   const [canViewRefunds,setCanViewRefunds]=useState(false);
@@ -42,7 +46,7 @@ export default function AdminRights() {
 
   const load=useCallback(async()=>{
     setLoading(true);setError("");
-    try{const data=await invoke({action:"list"});setPolicies(data.policies??[]);setOverrides(data.overrides??[]);setRevenue(data.revenue??[]);setCollections(data.collections??[]);setSummary(data.summary??{});}
+    try{const data=await invoke({action:"list"});const loadedPolicies=data.policies??[];setPolicies(loadedPolicies);setCommissionRates(Object.fromEntries(COMMISSION_CATEGORIES.map(category=>{const specific=loadedPolicies.find((p:Policy)=>p.scope_type==="role"&&p.scope_key===category.role&&p.collection_event===category.event&&p.is_enabled)??loadedPolicies.find((p:Policy)=>p.scope_type==="role"&&p.scope_key===category.role&&p.collection_event===category.event);const globalPolicy=loadedPolicies.find((p:Policy)=>p.scope_type==="global"&&p.collection_event===category.event&&p.is_enabled)??loadedPolicies.find((p:Policy)=>p.scope_type==="global"&&p.collection_event===category.event);return [category.role,String(specific?.commission_rate_percent??globalPolicy?.commission_rate_percent??0)];})));setOverrides(data.overrides??[]);setRevenue(data.revenue??[]);setCollections(data.collections??[]);setSummary(data.summary??{});}
     catch(e:any){setError(String(e?.message||"تعذر تحميل إعدادات الحقوق"));}finally{setLoading(false);}
   },[invoke]);
   useEffect(()=>{if(tab==="policies"||tab==="revenue"||tab==="special") void load();},[tab,load]);
@@ -123,29 +127,16 @@ export default function AdminRights() {
     catch(e:any){toast.error(String(e?.message||"تعذر إلغاء الميزة"));}
   };
 
-  const policyHelp="لإيقاف كل الاستقطاعات بمحافظة: اختر (كل العمليات)، ثم المحافظة، واجعل نسبة تحصيل العمولة 0٪ مع تفعيل السياسة.";
-  const savePolicy=async()=>{
-    const key=scope==="global"?null:scopeKey.trim();
-    if(scope!=="global"&&!key){toast.error("حدد المحافظة أو الفئة");return;}
-    const rate=Number(commissionRate),charge=Number(commissionCharge),days=Number(trialDays);
-    if(![rate,charge,days].every(Number.isFinite)||rate<0||rate>100||charge<0||charge>100||days<0||days>365){toast.error("تحقق من النسب ومدة الإعفاء");return;}
+  const saveCategoryPolicy=async(category:typeof COMMISSION_CATEGORIES[number])=>{
+    const percent=Number(commissionRates[category.role]??"0");
+    if(!Number.isFinite(percent)||percent<0||percent>100){toast.error("اكتب نسبة من 0 إلى 100");return;}
     setBusy(true);
-    try{await invoke({action:"save_policy",scope_type:scope,scope_key:key,commission_rate_percent:rate,commission_charge_percent:charge,collection_event:event,free_trial_enabled:trialEnabled,free_trial_days:days,new_users_only:true,is_enabled:policyEnabled,starts_at:new Date().toISOString(),ends_at:null});toast.success(policyEnabled?"تم تفعيل سياسة العمولة":"تم إيقاف السياسة الجديدة وإغلاق السابقة");await load();}
-    catch(e:any){toast.error(String(e?.message||"تعذر حفظ سياسة العمولة"));}finally{setBusy(false);}
+    try{await invoke({action:"save_policy",scope_type:"role",scope_key:category.role,commission_rate_percent:percent,commission_charge_percent:100,collection_event:category.event,free_trial_enabled:false,free_trial_days:0,new_users_only:false,is_enabled:true,starts_at:new Date().toISOString(),ends_at:null});toast.success("انحفظت نسبة "+category.label+" وحدها");await load();}
+    catch(e:any){toast.error(String(e?.message||"تعذر حفظ نسبة الاستقطاع"));}finally{setBusy(false);}
   };
 
   const revenueLabel:Record<string,string>={taxi_commission:"عمولة التكسي",service_commission:"عمولة الفني",order_commission:"عمولة طلب شريك",complaint_deduction:"استقطاع شكوى",wallet_debt_collection:"تحصيل دين المحفظة",admin_credit_reversal:"تسوية إدارية"};
   const statusLabel:Record<string,string>={accrued:"مستحق",partially_collected:"محصل جزئياً",collected:"محصل",void:"ملغى",partially_waived:"معفى جزئياً",waived:"مغلق بالإعفاء"};
-  const scopeLabel:Record<string,string>={global:"كل العراق",governorate:"محافظة",role:"فئة",governorate_role:"فئة داخل محافظة"};
-  const eventLabel:Record<string,string>={taxi_acceptance:"عند وصول/بدء رحلة التكسي",service_acceptance:"عند وصول/بدء الخدمة",order_acceptance:"قبول طلب شريك",all_acceptance:"كل العمليات"};
-  const formatScopeKey=(p:Policy)=>{
-    if(p.scope_type==="global")return "كل العراق";
-    const roleLabels:Record<string,string>={driver:"أصحاب التكسي",large_driver:"التكسي الكبير",worker:"الفنيون",restaurant:"المطاعم",hotel:"الفنادق",store:"المتاجر"};
-    if(p.scope_type==="governorate")return govLabels[p.scope_key||""]||p.scope_key||"";
-    if(p.scope_type==="role")return roleLabels[p.scope_key||""]||p.scope_key||"";
-    const [gov,role]=(p.scope_key||"").split(":");
-    return (govLabels[gov]||gov)+" · "+(roleLabels[role]||role);
-  };
   const categoryLabel=(u:User)=>{
     const value=String(u.partner?.partner_type||u.partner?.business_vertical||"").toLowerCase();
     if(value.includes("restaurant")||value.includes("food"))return "مطعم";
@@ -182,20 +173,9 @@ export default function AdminRights() {
       {tab==="special"&&<div className="border-t border-border pt-3 space-y-2"><h4 className="font-black text-xs">الإعفاءات والميزات السارية</h4>{overrides.map(o=><div key={o.id} className="rounded-xl bg-card border border-border p-3 flex items-center justify-between gap-2"><div className="min-w-0"><b className="text-xs">{o.profile?.full_name||o.profile?.phone||"مستخدم"}</b><p className="text-[10px] text-muted-foreground">تحصيل {o.commission_charge_percent}% · {o.ends_at?new Date(o.ends_at).toLocaleDateString("ar-IQ"):"دائم"}</p></div><button onClick={()=>void revokeOverride(o.id)} className="rounded-lg bg-destructive/10 text-destructive px-3 py-2 text-[10px] font-bold">إلغاء</button></div>)}{!overrides.length&&<p className="text-[10px] text-muted-foreground">لا توجد ميزات خاصة سارية</p>}</div>}
     </div>}
     {tab==="policies"&&<div className="glass rounded-2xl p-4 space-y-3">
-      <div className="flex justify-between items-center"><h3 className="font-black text-sm">سياسة العمولة وفترة الإعفاء</h3><button onClick={()=>void load()} className="text-xs text-primary"><RefreshCw className="inline h-3.5 w-3.5 ml-1"/>تحديث</button></div>
-      <label className="block text-xs font-bold">نطاق السياسة</label>
-      <select value={scope} onChange={e=>{setScope(e.target.value);setScopeKey("");}} className="w-full rounded-xl border border-border bg-background p-3 text-xs"><option value="global">كل العراق</option><option value="governorate">محافظة</option><option value="role">فئة مستخدمين</option><option value="governorate_role">فئة داخل محافظة</option></select>
-      {scope==="governorate"&&<select value={scopeKey} onChange={e=>setScopeKey(e.target.value)} className="w-full rounded-xl border border-border bg-background p-3 text-xs"><option value="">اختر المحافظة</option>{governorates.map(g=><option key={g} value={g}>{govLabels[g]}</option>)}</select>}
-      {scope==="role"&&<select value={scopeKey} onChange={e=>setScopeKey(e.target.value)} className="w-full rounded-xl border border-border bg-background p-3 text-xs"><option value="">اختر الفئة</option>{roles.map(r=><option key={r.value} value={r.value}>{r.label}</option>)}</select>}
-      {scope==="governorate_role"&&<div className="grid grid-cols-2 gap-2"><select value={scopeKey.split(":")[0]||""} onChange={e=>setScopeKey(e.target.value+":"+(scopeKey.split(":")[1]||""))} className="rounded-xl border border-border bg-background p-3 text-xs"><option value="">المحافظة</option>{governorates.map(g=><option key={g} value={g}>{govLabels[g]}</option>)}</select><select value={scopeKey.split(":")[1]||""} onChange={e=>setScopeKey((scopeKey.split(":")[0]||"")+":"+e.target.value)} className="rounded-xl border border-border bg-background p-3 text-xs"><option value="">الفئة</option>{roles.map(r=><option key={r.value} value={r.value}>{r.label}</option>)}</select></div>}
-      <div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold">نسبة عمولة ممنون من الأجرة %</label><input value={commissionRate} onChange={e=>setCommissionRate(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border border-border bg-background p-3 text-xs"/></div><div><label className="text-xs font-bold">نسبة تحصيل العمولة %</label><input value={commissionCharge} onChange={e=>setCommissionCharge(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border border-border bg-background p-3 text-xs"/></div></div>
-      <label className="block text-xs font-bold">متى يُستقطع؟</label><select value={event} onChange={e=>setEvent(e.target.value)} className="w-full rounded-xl border border-border bg-background p-3 text-xs"><option value="taxi_acceptance">عند الوصول أو بدء الرحلة</option><option value="service_acceptance">عند عند وصول/بدء الخدمة</option><option value="order_acceptance">عند قبول طلب مطعم أو متجر</option><option value="all_acceptance">كل العمليات</option></select>
-      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={trialEnabled} onChange={e=>setTrialEnabled(e.target.checked)}/> منح إعفاء من العمولة للمستخدمين الجدد</label>
-      <label className="block text-xs font-bold">مدة الإعفاء بالأيام</label><input value={trialDays} onChange={e=>setTrialDays(e.target.value)} inputMode="numeric" className="w-full rounded-xl border border-border bg-background p-3 text-xs"/>
-      <p className="text-[10px] text-muted-foreground">تبدأ فترة الإعفاء من تاريخ تسجيل المستخدم الجديد، وتبقى مدته ثابتة حتى لو أوقفت العرض لاحقاً.</p>
-      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={policyEnabled} onChange={e=>setPolicyEnabled(e.target.checked)}/> تفعيل سياسة الاستقطاع (نسبة التحصيل 0٪ تعني مجاني)</label>
-      <button disabled={busy} onClick={()=>void savePolicy()} className="w-full rounded-xl bg-primary text-primary-foreground p-3 text-xs font-black">{busy?"جارٍ الحفظ...":"حفظ سياسة العمولة"}</button>
-      <div className="border-t border-border pt-3 space-y-2"><h4 className="font-black text-xs">السياسات المحفوظة</h4>{policies.map(p=><div key={p.id} className="rounded-xl bg-card border border-border p-3 text-[10px]"><b>{scopeLabel[p.scope_type]||p.scope_type} · {formatScopeKey(p)}</b><div>عمولة {p.commission_rate_percent}% · تحصيل {p.commission_charge_percent}% · {eventLabel[p.collection_event]||p.collection_event} · {p.is_enabled?"فعالة":"متوقفة"}</div><div>إعفاء {p.free_trial_enabled?p.free_trial_days+" يوم":"متوقف"} · {p.new_users_only?"جدد فقط":"غير مقيد"}</div></div>)}</div>
+      <div className="flex justify-between items-center"><div><h3 className="font-black text-sm">نسبة الاستقطاع حسب الفئة</h3><p className="text-[10px] text-muted-foreground mt-1">كل فئة إلها نسبة مستقلة وزر حفظ خاص. نسبة 0٪ تعني عدم استقطاع عمولة من الفئة.</p></div><button onClick={()=>void load()} className="text-xs text-primary"><RefreshCw className="inline h-3.5 w-3.5 ml-1"/>تحديث</button></div>
+      {COMMISSION_CATEGORIES.map(category=>{const current=policies.find(p=>p.scope_type==="role"&&p.scope_key===category.role&&p.collection_event===category.event);return <div key={category.role} className="rounded-xl border border-border bg-card p-3 space-y-2"><h4 className="font-black text-xs">{category.label}</h4><label className="block text-xs font-bold">نسبة استقطاع ممنون من قيمة الطلب (%)<input value={commissionRates[category.role]??"0"} onChange={e=>setCommissionRates(old=>({...old,[category.role]:e.target.value}))} inputMode="decimal" className="mt-1 w-full rounded-xl border border-border bg-background p-3 text-xs" placeholder="0 إلى 100"/></label><p className="text-[10px] text-muted-foreground">{current?"آخر نسبة محفوظة: "+Number(current.commission_rate_percent||0)+"٪ · "+(current.is_enabled?"مفعّلة":"متوقفة"):"ماكو تخصيص مستقل محفوظ؛ تُستخدم النسبة العامة إن وجدت."}</p><button disabled={busy} onClick={()=>void saveCategoryPolicy(category)} className="w-full rounded-xl bg-primary text-primary-foreground p-3 text-xs font-black">{busy?"جارٍ الحفظ...":"حفظ نسبة "+category.label+" فقط"}</button></div>;})}
+      <p className="text-[10px] text-muted-foreground">ماكو نسبة خصم أو تحصيل إضافية بهذا النموذج؛ النظام يحسب الاستقطاع من النسبة الوحيدة المحددة لكل فئة. كل حفظ يغيّر الفئة المحددة فقط.</p>
     </div>}
     {tab==="revenue"&&<div className="glass rounded-2xl p-4 space-y-3"><div className="flex justify-between items-center"><h3 className="font-black text-sm">دفتر إيرادات ممنون</h3><button onClick={()=>void load()} className="text-xs text-primary">تحديث</button></div><div className="grid grid-cols-1 sm:grid-cols-3 gap-2"><div className="rounded-xl bg-primary/10 p-3"><p className="text-[10px] text-muted-foreground">إجمالي إيرادات ممنون المحصلة</p><b className="text-lg">{Number(summary.collected_iqd||0).toLocaleString("ar-IQ")} د.ع</b></div><div className="rounded-xl bg-muted p-3"><p className="text-[10px] text-muted-foreground">منها تحصيل ديون جديدة عبر زين كاش</p><b className="text-lg">{Number(summary.zaincash_debt_collected_iqd||0).toLocaleString("ar-IQ")} د.ع</b></div><div className="rounded-xl bg-muted p-3"><p className="text-[10px] text-muted-foreground">ديون مستحقة لممنون</p><b className="text-lg">{Number(summary.outstanding_iqd||0).toLocaleString("ar-IQ")} د.ع</b></div></div><h4 className="font-black text-xs">تحصيلات زين كاش المؤكدة</h4>{collections.map(x=><div key={x.id} className="rounded-xl bg-card border border-border p-3"><b className="text-xs">{Number(x.amount_iqd).toLocaleString("ar-IQ")} د.ع</b><p className="text-[10px] text-muted-foreground">{x.payment_purpose==="wallet_topup"?"تحصيل من شحن محفظة":x.payment_purpose==="service_request"?"عمولة من دفعة طلب خدمة":"تحصيل"} · {x.payment_provider||"—"} · مرجع: {x.provider_reference} · {new Date(x.created_at).toLocaleString("ar-IQ")}</p>{x.refund_review_pending&&<p className="text-[10px] text-amber-700 font-black">معلّق لحين حسم طلب الاسترداد</p>}{Number(x.reversed_amount_iqd||0)>0&&<p className="text-[10px] text-amber-700">عكس قيد/استرداد: {Number(x.reversed_amount_iqd).toLocaleString("ar-IQ")} د.ع · الصافي المحتسب {Number(x.net_amount_iqd||0).toLocaleString("ar-IQ")} د.ع · {x.reversal_reason||"قيد معكوس"}</p>}</div>)}<h4 className="font-black text-xs pt-2">العمولات والاستقطاعات</h4>{revenue.map(r=><div key={r.id} className="rounded-xl bg-card border border-border p-3"><div className="font-black text-xs">{r.profile?.full_name||r.profile?.phone||"مستخدم"}</div><div className="text-[10px] text-muted-foreground">{revenueLabel[r.revenue_type]||r.revenue_type} · {new Date(r.created_at).toLocaleString("ar-IQ")}{r.request_code?" · رقم الطلب "+r.request_code:""}</div><div className="text-xs mt-1">مستحق {Number(r.assessed_iqd).toLocaleString("ar-IQ")} د.ع · محصل {Number(r.collected_iqd).toLocaleString("ar-IQ")} د.ع · معفى {Number(r.waived_iqd).toLocaleString("ar-IQ")} د.ع</div><div className={"text-[10px] mt-1 "+(r.metadata?.refund_review_pending?"text-amber-700 font-black":"")}>{r.metadata?.refund_review_pending?"معلّق لحين حسم طلب الاسترداد":statusLabel[r.status]||r.status}</div></div>)}{!revenue.length&&<p className="text-xs text-muted-foreground">لا توجد إيرادات مسجلة حالياً</p>}</div>}
     {tab==="refunds"&&<div className="glass rounded-2xl p-4 space-y-3">

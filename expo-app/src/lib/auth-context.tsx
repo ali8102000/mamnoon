@@ -208,15 +208,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!requiresFreshPrivilegeCheck && APP_VARIANT === "customer") setLoading(false);
     }
     try {
-      const [profileResult, rolesResult, driverResult, workerResult] = await withStartupTimeout(Promise.all([
+      const providerProfileTable =
+        APP_VARIANT === "driver" ? "driver_profiles" :
+        APP_VARIANT === "large_driver" ? "naqil_profiles" :
+        APP_VARIANT === "worker" ? "worker_profiles" : null;
+      const [profileResult, rolesResult, providerProfileResult] = await withStartupTimeout(Promise.all([
         supabase
           .from("profiles")
           .select("id, phone, full_name, avatar_url")
           .eq("id", uid)
           .maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", uid),
-        supabase.from("driver_profiles").select("user_id,vehicle_category,status").eq("user_id", uid).maybeSingle(),
-        supabase.from("worker_profiles").select("user_id,status").eq("user_id", uid).maybeSingle(),
+        providerProfileTable
+          ? (supabase as any).from(providerProfileTable).select("user_id,vehicle_category,status").eq("user_id", uid).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
       ]), 12000, "account_bootstrap_timeout");
 
       // Ignore stale lookups when a different account signed in while these
@@ -231,12 +236,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const mappedRoles: AppRole[] = rolesResult.error
         ? (cached?.roles ?? []).filter((role) => !providerRoleNames.has(role))
         : (rolesResult.data ?? []).map((row) => row.role as AppRole).filter((role) => {
-            if (role === "worker") return !workerResult.error && workerResult.data?.status === "approved";
-            if (role === "driver" || role === "large_driver") {
-              if (driverResult.error || driverResult.data?.status !== "approved") return false;
-              return role === "large_driver" ? driverResult.data.vehicle_category === "large"
-                : ["economy", "premium", "luxury"].includes(String(driverResult.data.vehicle_category));
-            }
+            // This binary may activate only its own provider role. Other roles
+            // remain attached to the same Supabase user but are read by their
+            // own independent app and profile table.
+            if (role !== APP_VARIANT && providerRoleNames.has(role)) return false;
+            if (role === "worker") return !providerProfileResult.error && providerProfileResult.data?.status === "approved";
+            if (role === "large_driver") return !providerProfileResult.error &&
+              providerProfileResult.data?.status === "approved" &&
+              providerProfileResult.data?.vehicle_category === "large";
+            if (role === "driver") return !providerProfileResult.error &&
+              providerProfileResult.data?.status === "approved" &&
+              ["economy", "premium", "luxury"].includes(String(providerProfileResult.data?.vehicle_category));
             return true;
           });
       if (!mappedRoles.includes("customer")) mappedRoles.unshift("customer");
@@ -249,8 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (
         !profileResult.error &&
         !rolesResult.error &&
-        !driverResult.error &&
-        !workerResult.error
+        !providerProfileResult.error
       ) {
         await withStartupTimeout(writeCachedAuthProfile(uid, {
           profile: resolvedProfile,
