@@ -759,7 +759,7 @@ Deno.serve(async (req: Request) => {
       }));
       return json({
         profile: profile.data, roles: roles.data ?? [], block: block.data,
-        driverProfile: driver.data, workerProfile: worker.data,
+        driverProfile: driver.data, naqilProfile: naqil.data, workerProfile: worker.data,
         transactions: transactions.data ?? [], requests: requests.data ?? [],
         verifications: signedVerifications,
         partnerBusinessProfiles: partnerBusinesses.data ?? [],
