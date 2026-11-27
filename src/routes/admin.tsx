@@ -89,6 +89,7 @@ import RegionalControlsSection from "@/components/admin-regional-controls";
 import AdminTaxiPricingControls from "@/components/admin-taxi-pricing-controls";
 import AdminPeakWeatherControl from "@/components/admin-peak-weather-control";
 import AdminCategoryPeakPricing from "@/components/admin-category-peak-pricing";
+import AdminRegionalPeakPricing from "@/components/admin-regional-peak-pricing";
 import AdminDispatchZones from "@/components/admin-dispatch-zones";
 import AdminProviderMissions from "@/components/admin-provider-missions";
 import AdminGrowthCampaigns from "@/components/admin-growth-campaigns";
@@ -460,7 +461,7 @@ function AdminPage() {
           {section === "map" && <MapSection />}
           {section === "notifications" && <NotificationsSection />}
           {section === "regions" && <RegionalControlsSection />}
-          {section === "pricing" && <><AdminTaxiPricingControls /><AdminPeakWeatherControl /><AdminCategoryPeakPricing /></>}
+          {section === "pricing" && <><AdminTaxiPricingControls /><AdminPeakWeatherControl /><AdminCategoryPeakPricing /><AdminRegionalPeakPricing /></>}
           {section === "driverTiers" && <DriverPerformanceTierSettings />}
           {section === "dispatchZones" && <AdminDispatchZones />}
           {section === "missions" && <AdminProviderMissions />}
