@@ -500,12 +500,13 @@ Deno.serve(async (req: Request) => {
       if (profileError || !targetProfile) throw new Error("permission_required:providers.profile.edit");
       const governorate = targetProfile.governorate_key ?? null;
       await requirePermission("providers.profile.edit", governorate ? "governorate" : "global", governorate);
-      const [driver, worker] = await Promise.all([
+      const [driver, naqil, worker] = await Promise.all([
         admin.from("driver_profiles").select("user_id").eq("user_id", body.user_id).maybeSingle(),
+        admin.from("naqil_profiles").select("user_id").eq("user_id", body.user_id).maybeSingle(),
         admin.from("worker_profiles").select("user_id").eq("user_id", body.user_id).maybeSingle(),
       ]);
-      if (driver.error || worker.error) return json({ error: "provider_lookup_failed" }, 500);
-      if (!driver.data && !worker.data) return json({ error: "provider_only" }, 400);
+      if (driver.error || naqil.error || worker.error) return json({ error: "provider_lookup_failed" }, 500);
+      if (!driver.data && !naqil.data && !worker.data) return json({ error: "provider_only" }, 400);
       const { error } = await admin.from("profiles").update({ full_name: body.full_name.trim() }).eq("id", body.user_id);
       if (error) return json({ error: "provider_name_update_failed" }, 500);
       return json({ ok: true, full_name: body.full_name.trim() });
@@ -726,12 +727,12 @@ Deno.serve(async (req: Request) => {
       const type = ["driver", "large_driver", "worker"].includes(body.type) ? body.type : "driver";
       const status = ["all", "approved", "pending", "suspended", "rejected"].includes(body.status) ? body.status : "all";
       const category = typeof body.category === "string" ? body.category.slice(0, 80) : "all";
-      const table = type === "worker" ? "worker_profiles" : "driver_profiles";
+      const table = type === "worker" ? "worker_profiles" : type === "large_driver" ? "naqil_profiles" : "driver_profiles";
       let providerQuery = admin.from(table)
         .select("*, profiles!inner(full_name,phone,email,avatar_url)", { count: "exact" });
       if (scopeType === "governorate" && scopeGovernorate) providerQuery = providerQuery.eq("profiles.governorate_key", scopeGovernorate);
-      // The taxi and large-vehicle roles share driver_profiles, so the role
-      // selector must also constrain the underlying vehicle category.
+      // Each provider role has its own profile table; the category checks
+      // below are defensive validation within that role's table.
       if (type === "large_driver") {
         providerQuery = providerQuery.eq("vehicle_category", "large");
       } else if (type === "driver") {
@@ -863,14 +864,14 @@ Deno.serve(async (req: Request) => {
       // as a taxi driver (or the reverse). The database RPC applies the same
       // separation, but fail here with a clear, actionable response.
       if (body.type !== "worker") {
-        const { data: driverProfile, error: driverProfileError } = await admin.from("driver_profiles")
+        const profileTable = body.type === "large_driver" ? "naqil_profiles" : "driver_profiles";
+        const { data: providerProfile, error: providerProfileError } = await admin.from(profileTable)
           .select("vehicle_category").eq("user_id", body.user_id).maybeSingle();
-        if (driverProfileError) return json({ error: "provider_profile_lookup_failed" }, 500);
-        const isLargeVehicle = driverProfile?.vehicle_category === "large";
-        const isTaxiVehicle = ["economy", "premium", "luxury"].includes(String(driverProfile?.vehicle_category ?? ""));
-        if (!driverProfile || (body.type === "large_driver" ? !isLargeVehicle : !isTaxiVehicle)) {
-          return json({ error: "provider_type_profile_mismatch" }, 409);
-        }
+        if (providerProfileError) return json({ error: "provider_profile_lookup_failed" }, 500);
+        const validCategory = body.type === "large_driver"
+          ? providerProfile?.vehicle_category === "large"
+          : ["economy", "premium", "luxury"].includes(String(providerProfile?.vehicle_category ?? ""));
+        if (!providerProfile || !validCategory) return json({ error: "provider_type_profile_mismatch" }, 409);
       }
 
       const { data: targetProfile, error: targetProfileError } = await admin.from("profiles")
