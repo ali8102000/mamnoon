@@ -1212,14 +1212,15 @@ Deno.serve(async (req: Request) => {
       const canReadTickets = ["super_admin", "admin", "support", "customer_service"]
         .some((role) => staffRoles.has(role));
 
-      const [users, drivers, workers, activeRequests] = await Promise.all([
+      const [users, drivers, naqils, workers, activeRequests] = await Promise.all([
         admin.from("profiles").select("id", { count: "exact", head: true }),
         admin.from("driver_profiles").select("id", { count: "exact", head: true }).eq("available", true),
+        admin.from("naqil_profiles").select("id", { count: "exact", head: true }).eq("available", true),
         admin.from("worker_profiles").select("id", { count: "exact", head: true }).eq("available", true),
         admin.from("service_requests").select("id", { count: "exact", head: true })
           .in("status", ["pending", "searching", "accepted", "in_progress"]),
       ]);
-      if (users.error || drivers.error || workers.error || activeRequests.error) {
+      if (users.error || drivers.error || naqils.error || workers.error || activeRequests.error) {
         return json({ error: "monitoring_load_failed" }, 500);
       }
 
@@ -1244,6 +1245,7 @@ Deno.serve(async (req: Request) => {
         stats: {
           totalUsers: users.count ?? 0,
           activeDrivers: drivers.count ?? 0,
+          activeCarriers: naqils.count ?? 0,
           activeWorkers: workers.count ?? 0,
           activeRequests: activeRequests.count ?? 0,
         },
