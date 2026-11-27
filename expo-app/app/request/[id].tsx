@@ -307,12 +307,10 @@ export default function RequestDetail() {
   const [paymentGatewayEnabled, setPaymentGatewayEnabled] = useState(false);
   const [dispatchClock, setDispatchClock] = useState(Date.now());
   const [urgencyAllowed, setUrgencyAllowed] = useState(false);
-  const [urgencyAdminPercent, setUrgencyAdminPercent] = useState(0);
   const [urgencyBusy, setUrgencyBusy] = useState(false);
   const countdownNotificationIdRef = useRef<string | null>(null);
   const [retryPriceIncrease, setRetryPriceIncrease] = useState("0");
   const [retryingDispatch, setRetryingDispatch] = useState(false);
-  const [taxiUrgencyBusy, setTaxiUrgencyBusy] = useState(false);
   const [activeOffer, setActiveOffer] = useState<any>(null);
   const [serviceProviders, setServiceProviders] = useState<any[]>([]);
   const scrollRef = useRef<ScrollView>(null);
@@ -401,7 +399,6 @@ export default function RequestDetail() {
         .select("urgency_enabled,urgency_max_percent").eq("governorate_key","all").maybeSingle();
       if (!active || error) return;
       setUrgencyAllowed(Boolean(data?.urgency_enabled) && Number(data?.urgency_max_percent) > 0);
-      setUrgencyAdminPercent(Number(data?.urgency_max_percent) || 0);
     })();
     return () => { active = false; };
   }, []);
@@ -1240,19 +1237,6 @@ export default function RequestDetail() {
     }
     setRetryPriceIncrease("0");
     Alert.alert(activeSearch ? "تم رفع السعر" : "تمت إعادة الطلب", activeSearch ? "تم تحديث المبلغ وإعادة إرسال الطلب للمزودين القريبين." : increase > 0 ? "أعدنا إرسال نفس الطلب مع رفع السعر." : "أعدنا إرسال طلبك بنفس التفاصيل.");
-    await loadRequest();
-  }
-
-  async function enableTaxiUrgency() {
-    if (!request || taxiUrgencyBusy) return;
-    setTaxiUrgencyBusy(true);
-    const { error } = await (supabase as any).rpc("enable_taxi_request_urgency", { _request_id: id });
-    setTaxiUrgencyBusy(false);
-    if (error) {
-      Alert.alert("تعذر تفعيل الاستعجال", error.message?.includes("taxi_urgency_not_available") ? "وضع الاستعجال غير متاح حالياً حسب إعدادات ممنون." : error.message || "حاول مرة ثانية.");
-      return;
-    }
-    Alert.alert("تم تفعيل الاستعجال", "تم تحديث الأجرة وإعادة إرسال طلبك للسائقين القريبين.");
     await loadRequest();
   }
 
