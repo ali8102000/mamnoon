@@ -100,13 +100,9 @@ export default function WorkerOnboarding() {
     ]).then(([verification, workerProfile, workerRole]) => {
       if (!active) return;
       // A granted worker role is authoritative proof of prior approval.
-      const approved = !!workerRole.data
-        || verification.data?.status === "approved"
-        || workerProfile.data?.status === "approved";
-      setApprovedWorkerRole(!!workerRole.data);
-      const resolvedStatus = approved
-        ? "approved"
-        : verification.data?.status ?? workerProfile.data?.status ?? null;
+      const resolvedStatus = workerProfile.data?.status ?? verification.data?.status ?? null;
+      const approved = resolvedStatus === "approved";
+      setApprovedWorkerRole(approved && !!workerRole.data);
       if (resolvedStatus) setStatus(resolvedStatus);
       setRejectionReason(verification.data?.rejection_reason ?? null);
     }).catch((error) => {
@@ -304,7 +300,7 @@ export default function WorkerOnboarding() {
       setStatus("pending");
       setRejectionReason(null);
       await refresh();
-      Alert.alert("تم إرسال الطلب", "تم حفظ الصورة الشخصية والبطاقة الوطنية من الجهتين. طلبك الآن بانتظار موافقة " + companyName + ".");
+      Alert.alert("تم استلام طلبك", "لقد تلقينا طلبك بنجاح، وهو قيد المراجعة. سيتم إشعارك فور اتخاذ القرار، ويمكنك تحديث معلوماتك من شاشة الطلب.");
     } catch (err: unknown) {
       Alert.alert("تعذر إكمال التسجيل", err instanceof Error ? err.message : "حدث خطأ غير متوقع.");
     } finally {
@@ -315,14 +311,14 @@ export default function WorkerOnboarding() {
   if (status === "pending" || status === "approved") {
     return (
       <View style={styles.statusContainer}>
-        <Text style={styles.title}>{status === "approved" ? "تم اعتماد حسابك كفني" : "طلبك قيد المراجعة"}</Text>
+        <Text style={styles.title}>{status === "approved" ? "تم اعتماد حسابك كفني" : "لقد تلقينا طلبك"}</Text>
         <Text style={styles.statusText}>
           {status === "approved"
-            ? "تهانينا! تم تفعيل حسابك كفني بعد تدقيق مستمسكاتك. نرحب بك ضمن أسرة شركة ممنون الموثّقة ونتمنى لك التوفيق والنجاح."
-            : "استلمنا صورتك الشخصية والبطاقة الوطنية من الأمام والخلف. طلبك بانتظار موافقة " + companyName + "، وستتمكن من استقبال الطلبات بعد الاعتماد."}
+            ? "تهانينا! تم اعتمادك فنياً لدى ممنون. نرحب بك ضمن عائلتنا ونتمنى لك التوفيق والنجاح."
+            : "لقد تلقينا طلبك بنجاح، وهو الآن قيد المراجعة لدى فريق ممنون. لن تتمكن من الدخول إلى الواجهة الرئيسية أو استقبال الطلبات قبل اعتماد حسابك. سنرسل إليك إشعاراً فور اتخاذ القرار، ويمكنك تحديث معلوماتك من الزر أدناه."}
         </Text>
         {status === "pending" ? (
-          <Button title="تعديل البيانات وإعادة إرفاق المستمسكات" onPress={() => setStatus(null)} />
+          <Button title="تحديث المعلومات" onPress={() => setStatus(null)} />
         ) : (
           <>
             {pendingSpecialtyChange && <Text style={styles.note}>طلب تحديث الاختصاصات بانتظار موافقة الإدارة. اختصاصاتك الحالية تبقى فعالة.</Text>}
