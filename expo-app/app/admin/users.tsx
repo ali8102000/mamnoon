@@ -18,7 +18,7 @@ type UserRow = {
 };
 type Detail = {
   profile: any; roles: { role: string; created_at: string }[]; block: any;
-  driverProfile: any; workerProfile: any; transactions: any[]; requests: any[]; ratings: any[]; verifications?: any[];
+  driverProfile: any; naqilProfile: any; workerProfile: any; transactions: any[]; requests: any[]; ratings: any[]; verifications?: any[];
   partnerBusinessProfiles?: any[]; partnerApplications?: any[]; workerServices?: string[]; availableServices?: any[];
   ratings_error?: boolean;
 };
@@ -44,6 +44,7 @@ export default function AdminUsersScreen() {
   const [editEmail, setEditEmail] = useState("");
   const [editGovernorate, setEditGovernorate] = useState("");
   const [editDriver, setEditDriver] = useState<any>({});
+  const [editNaqil, setEditNaqil] = useState<any>({});
   const [editWorker, setEditWorker] = useState<any>({});
   const [editWorkerServices, setEditWorkerServices] = useState<string[]>([]);
   const [editPartner, setEditPartner] = useState<any>({});
@@ -107,6 +108,7 @@ export default function AdminUsersScreen() {
       setEditEmail(loaded.profile?.email ?? "");
       setEditGovernorate(loaded.profile?.governorate_key ?? "");
       setEditDriver({ ...(loaded.driverProfile ?? {}) });
+      setEditNaqil({ ...(loaded.naqilProfile ?? {}) });
       setEditWorker({ ...(loaded.workerProfile ?? {}) });
       setEditWorkerServices(loaded.workerServices ?? []);
       const business = loaded.partnerBusinessProfiles?.[0] ?? {};
@@ -176,6 +178,16 @@ export default function AdminUsersScreen() {
         ...(editDriver.service_radius_km != null && editDriver.service_radius_km !== "" ? { service_radius_km: Number(editDriver.service_radius_km) } : {}),
         ...(typeof editDriver.available === "boolean" ? { available: editDriver.available } : {}),
       } : undefined;
+      const naqil_profile = detail.naqilProfile ? {
+        vehicle_make: editNaqil.vehicle_make?.trim() || null,
+        vehicle_model: editNaqil.vehicle_model?.trim() || null,
+        vehicle_year: editNaqil.vehicle_year == null || editNaqil.vehicle_year === "" ? null : Number(editNaqil.vehicle_year),
+        vehicle_plate: editNaqil.vehicle_plate?.trim() || null,
+        vehicle_color: editNaqil.vehicle_color?.trim() || null,
+        vehicle_type: editNaqil.vehicle_type?.trim() || null,
+        ...(editNaqil.service_radius_km != null && editNaqil.service_radius_km !== "" ? { service_radius_km: Number(editNaqil.service_radius_km) } : {}),
+        ...(typeof editNaqil.available === "boolean" ? { available: editNaqil.available } : {}),
+      } : undefined;
       const worker_profile = detail.workerProfile ? {
         ...(editWorker.bio !== undefined ? { bio: editWorker.bio?.trim() || null } : {}),
         ...(editWorker.level ? { level: editWorker.level } : {}),
@@ -208,6 +220,7 @@ export default function AdminUsersScreen() {
         user_id: detail.profile.id,
         profile,
         ...(driver_profile ? { driver_profile } : {}),
+        ...(naqil_profile ? { naqil_profile } : {}),
         ...(worker_profile ? { worker_profile } : {}),
         ...(partner_profile ? { partner_profile } : {}),
       });
@@ -215,6 +228,7 @@ export default function AdminUsersScreen() {
         ...current,
         profile: { ...current.profile, ...(result.profile ?? {}) },
         driverProfile: { ...current.driverProfile, ...(result.driver_profile ?? {}) },
+        naqilProfile: { ...current.naqilProfile, ...(result.naqil_profile ?? {}) },
         workerProfile: { ...current.workerProfile, ...(result.worker_profile ?? {}) },
         workerServices: editWorkerServices,
         partnerBusinessProfiles: current.partnerBusinessProfiles?.map((row, index) => index === 0 ? { ...row, ...(result.partner_profile ?? {}) } : row),
@@ -327,6 +341,17 @@ export default function AdminUsersScreen() {
               <Text style={s.muted}>فئة المركبة</Text>
               <View style={s.durationWrap}>{[["economy","اقتصادي"],["premium","متميز"],["luxury","فاخر"],["large","مركبة كبيرة"]].map(([value,label])=><TouchableOpacity key={value} onPress={()=>setEditDriver((current:any)=>({...current,vehicle_category:value}))} style={[s.duration,editDriver.vehicle_category===value&&s.durationActive]}><Text style={[s.durationText,editDriver.vehicle_category===value&&s.durationTextActive]}>{label}</Text></TouchableOpacity>)}</View>
               <TouchableOpacity style={s.secondary} onPress={()=>setEditDriver((current:any)=>({...current,available:!current.available}))}><Text style={s.secondaryText}>حالة التوفر: {editDriver.available?"متاح":"غير متاح"} · اضغط للتبديل</Text></TouchableOpacity>
+            </>}
+            {!!detail?.naqilProfile && <>
+              <Text style={s.section}>بيانات الناقل والمركبة الكبيرة</Text>
+              {[
+                ["vehicle_make","الشركة المصنعة"],["vehicle_model","طراز المركبة"],["vehicle_year","سنة الصنع"],
+                ["vehicle_plate","رقم اللوحة"],["vehicle_color","اللون"],["vehicle_type","نوع المركبة"],
+                ["service_radius_km","نطاق الخدمة كم"],
+              ].map(([key,label])=><TextInput key={key} value={String(editNaqil[key] ?? "")} onChangeText={value=>setEditNaqil((current:any)=>({...current,[key]:value}))} placeholder={label} placeholderTextColor={palette.muted} style={s.input} textAlign="right" keyboardType={key==="vehicle_year"||key==="service_radius_km"?"numeric":"default"}/>)}
+              <TouchableOpacity style={s.secondary} onPress={()=>setEditNaqil((current:any)=>({...current,available:!current.available}))}>
+                <Text style={s.secondaryText}>حالة توفر الناقل: {editNaqil.available?"متاح":"غير متاح"} · اضغط للتبديل</Text>
+              </TouchableOpacity>
             </>}
             {!!detail?.workerProfile && <>
               <Text style={s.section}>بيانات الفني</Text>
