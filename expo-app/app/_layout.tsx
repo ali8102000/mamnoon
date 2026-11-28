@@ -1,4 +1,5 @@
 import "@/lib/background-location";
+import { recoverBackgroundLocationTasks } from "@/lib/background-location";
 import { Stack, router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Text, TextInput, View, useColorScheme } from "react-native";
@@ -169,6 +170,18 @@ function PushNotificationSetup() {
   return null;
 }
 
+function BackgroundLocationRecovery() {
+  const { user, loading } = useAuth();
+  useEffect(() => {
+    if (!loading && user?.id) {
+      void recoverBackgroundLocationTasks(user.id).catch((error) => {
+        console.warn("[Mamnoon GPS recovery] startup reconciliation failed:", error);
+      });
+    }
+  }, [loading, user?.id]);
+  return null;
+}
+
 function ProviderApprovalGate() {
   const { user, roles, loading } = useAuth();
   const pathname = usePathname();
@@ -234,6 +247,7 @@ export default function RootLayout() {
     <ThemePreferenceProvider>
       <AuthProvider>
         <PushNotificationSetup />
+        <BackgroundLocationRecovery />
         <ProviderApprovalGate />
         <View style={{ flex: 1, backgroundColor: palette.canvasSolid }}>
           <ApplicationBackdrop />
