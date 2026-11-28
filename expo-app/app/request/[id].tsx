@@ -18,7 +18,7 @@ import {
 import MapView, { AnimatedRegion, Marker, Polyline } from "react-native-maps";
 import { LinearGradient } from "expo-linear-gradient";
 import { SvgUri } from "react-native-svg";
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { getNotificationChannelId, loadNotificationPreferences } from "@/lib/notification-sound";
@@ -54,6 +54,24 @@ import { callMamnoonMapsApi } from "@/lib/maps-api";
 import { showContactOptions } from "@/lib/contact-actions";
 
 const QUICK_REPLIES_CUSTOMER = ["وصلت!", "كم دقيقة؟", "أين أنت؟", "شكراً جزيلاً", "هل أنت قريب؟"];
+const EXPERT_SEARCH_SLUGS = new Set(["build", "plaster", "carpentry_form", "flooring", "chef", "plumbing", "electric_setup", "electric_street"]);
+function AnimatedSearchLens() {
+  const rotation = useSharedValue(0);
+  const pulse = useSharedValue(0.88);
+  useEffect(() => {
+    rotation.value = withRepeat(withTiming(360, { duration: 2600, easing: Easing.linear }), -1, false);
+    pulse.value = withRepeat(withTiming(1.12, { duration: 900, easing: Easing.inOut(Easing.ease) }), -1, true);
+  }, [rotation, pulse]);
+  const sweepStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.value}deg` }] }));
+  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+  return <View style={{ width: 172, height: 172, alignItems: "center", justifyContent: "center", marginVertical: 8 }}>
+    <Animated.View style={[{ position: "absolute", width: 154, height: 154, borderRadius: 77, borderWidth: 2, borderColor: "#7566D8", backgroundColor: "#7566D81A" }, pulseStyle]} />
+    <View style={{ position: "absolute", width: 112, height: 112, borderRadius: 56, borderWidth: 1, borderColor: "#A69BEA", backgroundColor: "#7566D826" }} />
+    <Animated.View style={[{ position: "absolute", width: 112, height: 112, alignItems: "center" }, sweepStyle]}><View style={{ width: 3, height: 54, borderRadius: 2, backgroundColor: "#7566D8" }} /></Animated.View>
+    <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: "#FFFFFF", borderWidth: 5, borderColor: "#7566D8", alignItems: "center", justifyContent: "center", elevation: 5 }}><Text style={{ fontSize: 32 }}>⌕</Text></View>
+    <View style={{ position: "absolute", right: 20, bottom: 20, width: 16, height: 16, borderRadius: 8, backgroundColor: "#20A879", borderWidth: 3, borderColor: "#FFFFFF" }} />
+  </View>;
+}
 function normalizeCashDigits(value: string) {
   return value
     .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
@@ -309,7 +327,7 @@ export default function RequestDetail() {
   const [dispatchClock, setDispatchClock] = useState(Date.now());
   const [urgencyAllowed, setUrgencyAllowed] = useState(false);
   const [urgencyBusy, setUrgencyBusy] = useState(false);
-  const countdownNotificationIdRef = useRef<string | null>(null);
+
   const [retryPriceIncrease, setRetryPriceIncrease] = useState("0");
   const [retryingDispatch, setRetryingDispatch] = useState(false);
   const [activeOffer, setActiveOffer] = useState<any>(null);
@@ -403,42 +421,6 @@ export default function RequestDetail() {
     })();
     return () => { active = false; };
   }, []);
-  useEffect(() => {
-    if (!request || !isCustomer || !["pending","searching"].includes(request.status)) return;
-    let active = true;
-    void (async () => {
-      const start = Date.parse(request.searching_started_at || request.created_at || new Date().toISOString());
-      const totalSeconds = 360 * (request.type === "service" ? Math.max(1, Number(request.workers_count) || 1) : 1);
-      const remaining = Math.max(0, totalSeconds - Math.floor((Date.now() - start) / 1000));
-      if (remaining <= 0) return;
-      const preferences = await loadNotificationPreferences();
-      if (!active || !preferences.soundEnabled) return;
-      const seconds = Math.max(1, remaining - 10);
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "تنبيه انتهاء البحث",
-          body: "باقي ١٠ ثوانٍ على انتهاء وقت البحث عن مزوّد لطلبك.",
-          sound: "default",
-          data: { request_id: request.id, type: "request_countdown" },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds,
-          channelId: getNotificationChannelId(preferences.soundEnabled, preferences.vibrationEnabled),
-        },
-      });
-      if (active) countdownNotificationIdRef.current = notificationId;
-      else await Notifications.cancelScheduledNotificationAsync(notificationId).catch(() => {});
-    })().catch((error) => console.warn("[request-countdown] notification scheduling failed:", error));
-    return () => {
-      active = false;
-      const notificationId = countdownNotificationIdRef.current;
-      countdownNotificationIdRef.current = null;
-      if (notificationId) void Notifications.cancelScheduledNotificationAsync(notificationId).catch(() => {});
-    };
-  }, [request?.id, request?.status, request?.searching_started_at, request?.created_at, request?.type, request?.workers_count, isCustomer]);
-
-
   useEffect(() => {
     const timer = setInterval(() => setFreshnessClock(Date.now()), 5000);
     return () => clearInterval(timer);
@@ -1987,17 +1969,13 @@ export default function RequestDetail() {
             <Text style={{ color: palette.muted, fontSize: 12, textAlign: "center", lineHeight: 20 }}>
               {request.vehicle_category === "large" ? "نبحث عن أصحاب السيارات المناسبة، وستظهر لك عروض الأسعار عند وصولها." : request.type === "service" ? "نستقبل موافقات الفنيين إلى أن يكتمل العدد المطلوب أو تختار الاكتفاء بالفريق المتوفر." : "نبحث عن أقرب سائق أو فني متاح ومؤهل. أول شخص يقبل الطلب يحصل عليه."}
             </Text>
-            {(() => {
-              const start = Date.parse(request.searching_started_at || request.created_at || new Date().toISOString());
-              const totalSeconds = 360 * (request.type === "service" ? Math.max(1, Number(request.workers_count) || 1) : 1);
-              const remaining = Math.max(0, totalSeconds - Math.floor((dispatchClock - start) / 1000));
-              return <View style={{ width: 104, height: 104, borderRadius: 52, borderWidth: 7, borderColor: remaining <= 10 && remaining > 0 ? palette.danger : palette.gold, alignItems: "center", justifyContent: "center", marginTop: 8, backgroundColor: remaining <= 10 && remaining > 0 ? palette.dangerSoft : palette.surface, opacity: remaining <= 10 && remaining > 0 ? 0.78 + (dispatchClock % 2) * 0.22 : 1 }}>
-                <Text style={{ color: palette.ink, fontSize: 23, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{String(Math.floor(remaining / 60)).padStart(2, "0")}:{String(remaining % 60).padStart(2, "0")}</Text>
-                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800" }}>وقت البحث</Text>
-              </View>;
-            })()}
+            <AnimatedSearchLens />
+            <Text style={{ color: palette.ink, fontSize: 19, fontWeight: "900", textAlign: "center" }}>
+              {request.type === "taxi" && request.vehicle_category === "large" ? "البحث عن أقرب سيارة كبيرة" : request.type === "service" ? (EXPERT_SEARCH_SLUGS.has(request.services?.slug || "") ? "البحث عن أقرب خبير" : "البحث عن أقرب فني") : "البحث عن أقرب سائق"}
+            </Text>
+            <Text style={{ color: palette.muted, fontSize: 12, textAlign: "center", lineHeight: 21 }}>يجري فحص المناطق القريبة بالتتابع للوصول إلى مقدم الخدمة المناسب حسب موقعك وطلبك</Text>
             {request.type === "service" && <Text style={{ color: palette.brand, fontSize: 13, fontWeight: "900", textAlign: "center" }}>الفريق المؤكد: {acceptedPeopleCount} من {request.workers_count ?? 1} · المتبقي: {remainingPeopleCount}</Text>}
-            <Text style={{ color: palette.muted, fontSize: 11, textAlign: "center" }}>{request.vehicle_category === "large" ? "ثلاثة نطاقات بحث، ثم نعيد المحاولة. إذا وصلت عروض تبقى متاحة حتى تختار." : request.type === "service" ? (Number(request.workers_count || 1) > 1 ? "نبحث عن بقية أفراد الفريق، وعند انتهاء الجولة تختار تثبيت الموجودين أو استئناف البحث." : "نبحث عن فني متاح ضمن نطاقات البحث المعتادة.") : "ثلاثة نطاقات بحث، ونعيد المحاولة مرة ثانية قبل إنهاء البحث."}</Text>
+            <Text style={{ color: palette.muted, fontSize: 11, textAlign: "center" }}>{request.vehicle_category === "large" ? "ستظهر لك عروض أصحاب السيارات الكبيرة عند وصولها." : request.type === "service" ? "نستقبل عروض الفنيين أو الخبراء المؤهلين حسب اختصاص الخدمة." : "نبحث عن أقرب سائق متاح ومؤهل."}</Text>
             {request.type === "service" && acceptedPeopleCount > 0 && !(request as any).staffing_search_paused_at && (
               <TouchableOpacity
                 onPress={async () => {
