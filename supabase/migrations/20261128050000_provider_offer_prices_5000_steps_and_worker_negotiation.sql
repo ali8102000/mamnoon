@@ -122,3 +122,39 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.reject_worker_service_offer(uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.reject_worker_service_offer(uuid) TO authenticated;
+
+
+-- Permit only the secure customer-side RPC to accept a worker's negotiated service price.
+DO $$
+DECLARE v_def text;
+BEGIN
+  v_def := pg_get_functiondef('public.guard_customer_request_update()'::regprocedure);
+  v_def := replace(
+    v_def,
+    'BEGIN'||chr(10)||chr(10)||'  IF current_setting(''mamnoon.allow_service_staffing_close'', true) = ''true''',
+    'BEGIN'||chr(10)||chr(10)||
+    '  IF current_setting(''mamnoon.allow_worker_service_offer_accept'', true) = ''true'''||chr(10)||
+    '     AND auth.uid() = OLD.customer_id AND OLD.type::text = ''service'' AND NEW.type::text = ''service'''||chr(10)||
+    '     AND OLD.provider_id IS NULL AND NEW.provider_id IS NOT NULL AND NEW.provider_role = ''worker'''||chr(10)||
+    '     AND OLD.status IN (''pending'', ''searching'') AND NEW.status = ''accepted'''||chr(10)||
+    '     AND NEW.customer_price IS NOT NULL AND NEW.customer_price > 0' || chr(10)||
+    '     AND (to_jsonb(NEW) - ARRAY[''provider_id'',''provider_role'',''status'',''accepted_at'',''updated_at'',''customer_price'',''customer_payable'',''price_estimate'',''pricing_mode''])' || chr(10)||
+    '         IS NOT DISTINCT FROM (to_jsonb(OLD) - ARRAY[''provider_id'',''provider_role'',''status'',''accepted_at'',''updated_at'',''customer_price'',''customer_payable'',''price_estimate'',''pricing_mode'']) THEN' || chr(10)||
+    '    RETURN NEW;'||chr(10)||'  END IF;'||chr(10)||chr(10)||
+    '  IF current_setting(''mamnoon.allow_service_staffing_close'', true) = ''true'''
+  );
+  IF v_def NOT LIKE '%allow_worker_service_offer_accept%' THEN RAISE EXCEPTION 'worker offer guard insertion failed'; END IF;
+  EXECUTE v_def;
+
+  v_def := pg_get_functiondef('public.accept_worker_service_offer(uuid)'::regprocedure);
+  v_def := replace(v_def,
+    'PERFORM set_config(''mamnoon.allow_provider_request_transition'',''true'',true);',
+    'PERFORM set_config(''mamnoon.allow_worker_service_offer_accept'',''true'',true);'||chr(10)||
+    '  PERFORM set_config(''mamnoon.allow_provider_request_transition'',''true'',true);');
+  v_def := replace(v_def,
+    'PERFORM set_config(''mamnoon.allow_provider_request_transition'',''false'',true);',
+    'PERFORM set_config(''mamnoon.allow_provider_request_transition'',''false'',true);'||chr(10)||
+    '  PERFORM set_config(''mamnoon.allow_worker_service_offer_accept'',''false'',true);');
+  IF v_def NOT LIKE '%allow_worker_service_offer_accept%' THEN RAISE EXCEPTION 'worker offer accept function patch failed'; END IF;
+  EXECUTE v_def;
+END $$;
