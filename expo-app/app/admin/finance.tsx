@@ -230,7 +230,7 @@ export default function AdminFinanceScreen() {
           <Text style={s.cardTitle}>إنشاء قالب كوبون شخصي</Text>
           <Text style={s.muted}>الرمز هنا داخلي للحملة. ممنون ينشئ رمزاً مختلفاً لكل زبون عند التوزيع.</Text>
           <Text style={s.muted}>فئة الكوبون</Text>
-          <View style={s.row}>{([["taxi","التكسي"],["large_vehicle","السيارات الكبيرة"],["technician","الفنيون"]] as const).map(([k,label])=><TouchableOpacity key={k} onPress={()=>setCategoryKey(k)} style={[s.choice,categoryKey===k&&s.active]}><Text style={[s.tabText,categoryKey===k&&s.activeText]}>{label}</Text></TouchableOpacity>)}</View>
+          <View style={[s.row,s.filterRow]}>{([["taxi","التكسي"],["large_vehicle","السيارات الكبيرة"],["technician","الفنيون"]] as const).map(([k,label])=><TouchableOpacity key={k} onPress={()=>setCategoryKey(k)} style={[s.choice,categoryKey===k&&s.active]}><Text style={[s.tabText,categoryKey===k&&s.activeText]}>{label}</Text></TouchableOpacity>)}</View>
           <TextInput value={code} onChangeText={setCode} autoCapitalize="characters" placeholder="اسم/رمز الحملة الداخلي" placeholderTextColor={palette.muted} style={s.input}/>
           <View style={s.row}>{(["percentage","fixed"] as const).map(k=><TouchableOpacity key={k} onPress={()=>setCouponType(k)} style={[s.choice,couponType===k&&s.active]}><Text style={[s.tabText,couponType===k&&s.activeText]}>{k==="percentage"?"نسبة مئوية":"مبلغ ثابت"}</Text></TouchableOpacity>)}</View>
           <TextInput value={value} onChangeText={setValue} keyboardType="decimal-pad" placeholder={couponType==="percentage"?"النسبة":"قيمة الخصم بالدينار"} placeholderTextColor={palette.muted} style={s.input}/>
@@ -240,7 +240,7 @@ export default function AdminFinanceScreen() {
         </View>}
         <View style={s.card}>
           <Text style={s.cardTitle}>الفئة المستهدفة بالتوزيع</Text>
-          <View style={s.row}>{([["customers","كل الزبائن"],["customers_1","طلب واحد"],["customers_2","طلبان"],["customers_3","3 طلبات"],["customers_4","4 طلبات"],["customers_5","5+ طلبات"],["single","مستخدم محدد"]] as const).map(([k,label])=><TouchableOpacity key={k} onPress={()=>setTarget(k)} style={[s.choice,target===k&&s.active]}><Text style={[s.tabText,target===k&&s.activeText]}>{label}</Text></TouchableOpacity>)}</View>
+          <View style={[s.row,s.filterRow]}>{([["customers","كل الزبائن"],["customers_1","طلب واحد"],["customers_2","طلبان"],["customers_3","3 طلبات"],["customers_4","4 طلبات"],["customers_5","5+ طلبات"],["single","مستخدم محدد"]] as const).map(([k,label])=><TouchableOpacity key={k} onPress={()=>setTarget(k)} style={[s.choice,target===k&&s.active]}><Text style={[s.tabText,target===k&&s.activeText]}>{label}</Text></TouchableOpacity>)}</View>
           {target==="single"&&<View style={{gap:8}}>
             <TextInput value={query} onChangeText={setQuery} placeholder="اسم الزبون أو رقم هاتفه" placeholderTextColor={palette.muted} style={s.input} textAlign="right"/>
             <Action label={busy?"جارٍ البحث...":"بحث عن زبون"} disabled={busy} onPress={()=>void searchCouponUsers()}/>
@@ -292,7 +292,7 @@ const s=StyleSheet.create({
   tab:{flex:1,alignItems:"center",padding:10,borderRadius:radius.md},active:{backgroundColor:palette.brand,borderColor:palette.brand},tabText:{color:palette.ink,fontSize:11,fontWeight:"800"},activeText:{color:palette.white},
   input:{backgroundColor:palette.surface,color:palette.ink,borderWidth:1,borderColor:palette.line,borderRadius:radius.md,padding:12,textAlign:"right"},
   card:{backgroundColor:palette.surface,borderWidth:1,borderColor:palette.line,borderRadius:radius.lg,padding:14,gap:8},selected:{borderColor:palette.brand,borderWidth:2},
-  row:{flexDirection:"row",gap:8,flexWrap:"wrap"},choice:{flex:1,alignItems:"center",padding:11,borderRadius:radius.md,borderWidth:1,borderColor:palette.line},
+  row:{flexDirection:"row",gap:8,flexWrap:"wrap"},filterRow:{marginTop:18},choice:{flex:1,alignItems:"center",padding:11,borderRadius:radius.md,borderWidth:1,borderColor:palette.line},
   action:{minHeight:40,backgroundColor:palette.brand,borderRadius:16,paddingHorizontal:16,paddingVertical:8,alignItems:"center",justifyContent:"center"},actionText:{color:palette.white,fontWeight:"900",fontSize:12},
   small:{minHeight:36,backgroundColor:palette.brandSoft,paddingHorizontal:12,paddingVertical:6,borderRadius:16,alignItems:"center",justifyContent:"center"},smallDanger:{minHeight:36,backgroundColor:palette.dangerSoft,paddingHorizontal:12,paddingVertical:6,borderRadius:16,alignItems:"center",justifyContent:"center"},smallText:{color:palette.ink,fontWeight:"900",fontSize:11},
   error:{backgroundColor:palette.dangerSoft,padding:12,borderRadius:radius.md},errorText:{color:palette.danger,fontWeight:"900",textAlign:"right"},
