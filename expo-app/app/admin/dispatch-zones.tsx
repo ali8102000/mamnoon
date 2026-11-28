@@ -11,11 +11,17 @@ type Row = {
   governorate_key: string;
   dispatch_type: DispatchType;
   category_key: string;
+  ring1_min_km: number;
   ring1_max_km: number;
+  ring2_min_km: number;
   ring2_max_km: number;
+  ring3_min_km: number;
   ring3_max_km: number;
+  ring4_min_km: number;
   ring4_max_km: number;
+  ring5_min_km: number;
   ring5_max_km: number;
+  ring6_min_km: number;
   ring6_max_km: number;
   ring1_duration_seconds: number;
   ring2_duration_seconds: number;
@@ -32,9 +38,9 @@ const LABELS: Record<DispatchType, string> = {
   technician: "الفنيون ومقدمو الخدمات",
 };
 const DEFAULTS: Record<DispatchType, Omit<Row, "governorate_key" | "category_key">> = {
-  taxi: { dispatch_type: "taxi", ring1_max_km: 1, ring2_max_km: 2, ring3_max_km: 3, ring4_max_km: 4, ring5_max_km: 4.5, ring6_max_km: 5, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
-  large_driver: { dispatch_type: "large_driver", ring1_max_km: 5, ring2_max_km: 10, ring3_max_km: 20, ring4_max_km: 30, ring5_max_km: 40, ring6_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
-  technician: { dispatch_type: "technician", ring1_max_km: 5, ring2_max_km: 10, ring3_max_km: 20, ring4_max_km: 30, ring5_max_km: 40, ring6_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
+  taxi: { dispatch_type: "taxi", ring1_min_km: 0, ring1_max_km: 1, ring2_min_km: 1, ring2_max_km: 2, ring3_min_km: 2, ring3_max_km: 3, ring4_min_km: 3, ring4_max_km: 4, ring5_min_km: 4, ring5_max_km: 4.5, ring6_min_km: 4.5, ring6_max_km: 5, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
+  large_driver: { dispatch_type: "large_driver", ring1_min_km: 0, ring1_max_km: 5, ring2_min_km: 5, ring2_max_km: 10, ring3_min_km: 10, ring3_max_km: 20, ring4_min_km: 20, ring4_max_km: 30, ring5_min_km: 30, ring5_max_km: 40, ring6_min_km: 40, ring6_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
+  technician: { dispatch_type: "technician", ring1_min_km: 0, ring1_max_km: 5, ring2_min_km: 5, ring2_max_km: 10, ring3_min_km: 10, ring3_max_km: 20, ring4_min_km: 20, ring4_max_km: 30, ring5_min_km: 30, ring5_max_km: 40, ring6_min_km: 40, ring6_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
 };
 
 export default function AdminDispatchZonesScreen() {
@@ -80,22 +86,18 @@ export default function AdminDispatchZonesScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const update = (type: DispatchType, key: "ring1_max_km" | "ring2_max_km" | "ring3_max_km" | "ring4_max_km" | "ring5_max_km" | "ring6_max_km" | "ring1_duration_seconds" | "ring2_duration_seconds" | "ring3_duration_seconds" | "ring4_duration_seconds" | "ring5_duration_seconds" | "ring6_duration_seconds", value: string) => {
+  const update = (type: DispatchType, key: "ring1_min_km" | "ring1_max_km" | "ring2_min_km" | "ring2_max_km" | "ring3_min_km" | "ring3_max_km" | "ring4_min_km" | "ring4_max_km" | "ring5_min_km" | "ring5_max_km" | "ring6_min_km" | "ring6_max_km" | "ring1_duration_seconds" | "ring2_duration_seconds" | "ring3_duration_seconds" | "ring4_duration_seconds" | "ring5_duration_seconds" | "ring6_duration_seconds", value: string) => {
     setRows((current) => current.map((row) =>
       row.dispatch_type === type ? { ...row, [key]: value === "" ? 0 : Number(value), inherited: false } : row
     ));
   };
 
   const save = async (row: Row) => {
-    const first = Number(row.ring1_max_km);
-    const second = Number(row.ring2_max_km);
-    const third = Number(row.ring3_max_km);
-    const fourth = Number(row.ring4_max_km);
-    const fifth = Number(row.ring5_max_km);
-    const sixth = Number(row.ring6_max_km);
+    const mins = [row.ring1_min_km,row.ring2_min_km,row.ring3_min_km,row.ring4_min_km,row.ring5_min_km,row.ring6_min_km].map(Number);
+    const maxs = [row.ring1_max_km,row.ring2_max_km,row.ring3_max_km,row.ring4_max_km,row.ring5_max_km,row.ring6_max_km].map(Number);
     const times = [row.ring1_duration_seconds,row.ring2_duration_seconds,row.ring3_duration_seconds,row.ring4_duration_seconds,row.ring5_duration_seconds,row.ring6_duration_seconds].map(Number);
-    if (!(first > 0 && second > first && third > second && fourth > third && fifth > fourth && sixth > fifth && sixth <= 55 && times.every((v) => Number.isInteger(v) && v >= 5 && v <= 3600))) {
-      Alert.alert("إعدادات غير صحيحة", "رتّب مسافات النطاقات الستة تصاعدياً، وحدد مدة كل نطاق بين 5 و3600 ثانية.");
+    if (!(mins.every((v,i) => Number.isFinite(v) && v >= 0 && v < maxs[i]) && maxs.every((v) => Number.isFinite(v) && v <= 55) && times.every((v) => Number.isInteger(v) && v >= 5 && v <= 3600))) {
+      Alert.alert("إعدادات غير صحيحة", "حدد بداية ونهاية صحيحتين لكل نطاق (من 0 إلى 55 كم)، واجعل النهاية أكبر من البداية، والمدة بين 5 و3600 ثانية.");
       return;
     }
     setSaving(row.dispatch_type);
@@ -103,12 +105,12 @@ export default function AdminDispatchZonesScreen() {
       p_governorate_key: governorate,
       p_dispatch_type: row.dispatch_type,
       p_category_key: row.dispatch_type === "technician" ? categoryKey : "all",
-      p_ring1_max_km: first,
-      p_ring2_max_km: second,
-      p_ring3_max_km: third,
-      p_ring4_max_km: fourth,
-      p_ring5_max_km: fifth,
-      p_ring6_max_km: sixth,
+      p_ring1_min_km: mins[0], p_ring1_max_km: maxs[0],
+      p_ring2_min_km: mins[1], p_ring2_max_km: maxs[1],
+      p_ring3_min_km: mins[2], p_ring3_max_km: maxs[2],
+      p_ring4_min_km: mins[3], p_ring4_max_km: maxs[3],
+      p_ring5_min_km: mins[4], p_ring5_max_km: maxs[4],
+      p_ring6_min_km: mins[5], p_ring6_max_km: maxs[5],
       p_ring1_duration_seconds: times[0],
       p_ring2_duration_seconds: times[1],
       p_ring3_duration_seconds: times[2],
@@ -129,7 +131,7 @@ export default function AdminDispatchZonesScreen() {
     <ScrollView style={styles.page} contentContainerStyle={styles.container}>
       <Stack.Screen options={{ title: "نطاقات توزيع الطلبات" }} />
       <Text style={styles.title}>التحكم بنطاقات توزيع الطلبات</Text>
-      <Text style={styles.note}>حدد المحافظة وفئة الخدمة، ثم غيّر مسافة ومدة كل نطاق. لا ينتقل الطلب إلى النطاق التالي إلا بعد انتهاء الوقت المحدد فعلياً. الحفظ مستقل لكل فئة، ويُنشئ تخصيصاً للمحافظة أو الفئة المختارة دون تغيير إعدادات بقية الفئات.</Text>
+      <Text style={styles.note}>حدد المحافظة وفئة الخدمة، ثم اختر مسافة بداية ونهاية مستقلة لكل نطاق ومدة كل مرحلة. تگدر تخلي النطاقات تصاعدية أو تعيد نفس المسافات أو ترتبها بالطريقة اللي تريدها؛ ماكو شرط للتصاعد.</Text>
 
       <View style={styles.card}>
         <Text style={styles.label}>المحافظة</Text>
@@ -163,26 +165,14 @@ export default function AdminDispatchZonesScreen() {
             <Text style={styles.cardTitle}>{LABELS[row.dispatch_type]}</Text>
             {row.inherited && <Text style={styles.inherited}>يرث الإعداد الأقرب</Text>}
           </View>
-          {([
-            { key: "ring1_max_km", label: "النطاق الأول — الأقرب" },
-            { key: "ring2_max_km", label: "النطاق الثاني" },
-            { key: "ring3_max_km", label: "النطاق الثالث" },
-            { key: "ring4_max_km", label: "النطاق الرابع" },
-            { key: "ring5_max_km", label: "النطاق الخامس" },
-            { key: "ring6_max_km", label: "النطاق السادس — الأبعد" },
-          ] as const).map((field, index) => (
-            <View key={field.key}>
-              <Text style={styles.label}>{field.label} (كم)</Text>
-              <TextInput
-                value={String(row[field.key])}
-                onChangeText={(value) => update(row.dispatch_type, field.key, value)}
-                keyboardType="decimal-pad"
-                style={styles.input}
-              />
-              <Text style={styles.hint}>
-                {index === 0 ? "من 0" : "من " + row[("ring" + index + "_max_km") as keyof Row]}
-                {" "}كم إلى القيمة المحددة
-              </Text>
+          {([1,2,3,4,5,6] as const).map((index) => (
+            <View key={index} style={styles.rangeBox}>
+              <Text style={styles.label}>النطاق {index}{index === 6 ? " — المرحلة الأخيرة" : ""}</Text>
+              <Text style={styles.label}>من (كم)</Text>
+              <TextInput value={String(row[("ring" + index + "_min_km") as keyof Row])} onChangeText={(value) => update(row.dispatch_type, ("ring" + index + "_min_km") as any, value)} keyboardType="decimal-pad" style={styles.input} />
+              <Text style={styles.label}>إلى (كم)</Text>
+              <TextInput value={String(row[("ring" + index + "_max_km") as keyof Row])} onChangeText={(value) => update(row.dispatch_type, ("ring" + index + "_max_km") as any, value)} keyboardType="decimal-pad" style={styles.input} />
+              <Text style={styles.hint}>هذا النطاق مستقل؛ تگدر تكرر مسافة نطاق سابق أو تختار مسافة مختلفة.</Text>
             </View>
           ))}
           {([
@@ -224,6 +214,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 21, fontWeight: "900", color: palette.ink, textAlign: "right" },
   note: { fontSize: 11, lineHeight: 19, color: palette.muted, textAlign: "right" },
   card: { backgroundColor: palette.surface, borderColor: palette.line, borderWidth: 1, borderRadius: radius.lg, padding: 14, gap: 10 },
+  rangeBox: { borderWidth: 1, borderColor: palette.line, borderRadius: radius.md, padding: 10, gap: 6 },
   headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   cardTitle: { fontSize: 14, fontWeight: "900", color: palette.ink, textAlign: "right", flex: 1 },
   label: { fontSize: 11, fontWeight: "800", color: palette.ink, textAlign: "right" },
