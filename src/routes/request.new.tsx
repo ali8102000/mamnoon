@@ -1192,7 +1192,6 @@ function NewRequest() {
         {/* STEP 3: CARS ONLY */}
         {((mapStep === "dest" && destConfirmed) || (vehicle === "large" && mapStep === "pickup" && destConfirmed)) && (
           <div className="mt-auto relative z-30 bg-white dark:bg-black dark:text-slate-100 dark:border-slate-700 rounded-t-[32px] shadow-2xl border-t border-border/60 max-w-lg mx-auto w-full p-5 space-y-3">
-            {companyBranding.welcomeVisualUrl && <img src={companyBranding.welcomeVisualUrl} alt={`هوية ${companyBranding.companyName}`} className={`mx-auto max-h-24 w-full max-w-[220px] rounded-xl object-contain ${companyBranding.welcomeVisualAnimated ? "animate-pulse" : ""}`} />}
             {vehicle !== "large" && routeKm === null && !routeError && (
               <div
                 className="flex items-center justify-center gap-2 text-sm text-muted-foreground"
