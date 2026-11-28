@@ -663,11 +663,17 @@ export default function RequestDetail() {
 
   useEffect(() => { setAvatarLoadFailed(false); }, [otherProfile?.avatar_url]);
 
+  const requestChannelGeneration = useRef(0);
+
   useEffect(() => {
     loadRequest();
     loadChat();
+    // Give every effect instance a distinct topic. During fast refresh or a
+    // dependency change, Supabase may still be removing the previous channel;
+    // reusing its topic can hand back a joined channel that rejects new .on().
+    const channelGeneration = ++requestChannelGeneration.current;
     const sub = supabase
-      .channel(`request-${id}`)
+      .channel(`request-${id}-detail-${channelGeneration}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "service_requests", filter: `id=eq.${id}` },
