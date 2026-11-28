@@ -15,9 +15,18 @@ type Row = {
   ring2_max_km: number;
   ring3_min_km: number;
   ring3_max_km: number;
+  ring4_min_km: number;
+  ring4_max_km: number;
+  ring5_min_km: number;
+  ring5_max_km: number;
+  ring6_min_km: number;
+  ring6_max_km: number;
   ring1_duration_seconds: number;
   ring2_duration_seconds: number;
   ring3_duration_seconds: number;
+  ring4_duration_seconds: number;
+  ring5_duration_seconds: number;
+  ring6_duration_seconds: number;
   updated_at?: string;
   inherited?: boolean;
 };
@@ -29,9 +38,9 @@ const LABELS: Record<DispatchType, string> = {
   technician: "الفنيون ومقدمو الخدمات",
 };
 const DEFAULTS: Omit<Row, "governorate_key" | "category_key">[] = [
-  { dispatch_type: "taxi", ring1_min_km: 0, ring1_max_km: 1, ring2_min_km: 1, ring2_max_km: 3, ring3_min_km: 3, ring3_max_km: 5, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60 },
-  { dispatch_type: "large_driver", ring1_min_km: 0, ring1_max_km: 5, ring2_min_km: 5, ring2_max_km: 25, ring3_min_km: 25, ring3_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60 },
-  { dispatch_type: "technician", ring1_min_km: 0, ring1_max_km: 5, ring2_min_km: 5, ring2_max_km: 25, ring3_min_km: 25, ring3_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60 },
+  { dispatch_type: "taxi", ring1_min_km: 0, ring1_max_km: 1, ring2_min_km: 1, ring2_max_km: 2, ring3_min_km: 2, ring3_max_km: 3, ring4_min_km: 3, ring4_max_km: 4, ring5_min_km: 4, ring5_max_km: 4.5, ring6_min_km: 4.5, ring6_max_km: 5, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
+  { dispatch_type: "large_driver", ring1_min_km: 0, ring1_max_km: 5, ring2_min_km: 5, ring2_max_km: 10, ring3_min_km: 10, ring3_max_km: 20, ring4_min_km: 20, ring4_max_km: 30, ring5_min_km: 30, ring5_max_km: 40, ring6_min_km: 40, ring6_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
+  { dispatch_type: "technician", ring1_min_km: 0, ring1_max_km: 5, ring2_min_km: 5, ring2_max_km: 10, ring3_min_km: 10, ring3_max_km: 20, ring4_min_km: 20, ring4_max_km: 30, ring5_min_km: 30, ring5_max_km: 40, ring6_min_km: 40, ring6_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
 ];
 
 export default function AdminDispatchZones() {
@@ -93,7 +102,7 @@ export default function AdminDispatchZones() {
     return () => { void supabase.removeChannel(channel); };
   }, [load]);
 
-  const update = (type: DispatchType, key: "ring1_max_km" | "ring2_max_km" | "ring3_max_km" | "ring1_duration_seconds" | "ring2_duration_seconds" | "ring3_duration_seconds", value: string) => {
+  const update = (type: DispatchType, key: "ring1_max_km" | "ring2_max_km" | "ring3_max_km" | "ring4_max_km" | "ring5_max_km" | "ring6_max_km" | "ring1_duration_seconds" | "ring2_duration_seconds" | "ring3_duration_seconds" | "ring4_duration_seconds" | "ring5_duration_seconds" | "ring6_duration_seconds", value: string) => {
     setRows((old) => old.map((r) => r.dispatch_type === type ? { ...r, [key]: value === "" ? 0 : Number(value), inherited: false } : r));
   };
 
@@ -101,11 +110,12 @@ export default function AdminDispatchZones() {
     const a = Number(row.ring1_max_km);
     const b = Number(row.ring2_max_km);
     const c = Number(row.ring3_max_km);
-    const t1 = Number(row.ring1_duration_seconds);
-    const t2 = Number(row.ring2_duration_seconds);
-    const t3 = Number(row.ring3_duration_seconds);
-    if (!(a > 0 && b > a && c > b && c <= 55 && [t1,t2,t3].every((v) => Number.isInteger(v) && v >= 5 && v <= 3600))) {
-      toast.error("رتّب المسافات تصاعدياً، وحدد مدة كل نطاق بين 5 و3600 ثانية");
+    const d = Number(row.ring4_max_km);
+    const e = Number(row.ring5_max_km);
+    const f = Number(row.ring6_max_km);
+    const times = [row.ring1_duration_seconds,row.ring2_duration_seconds,row.ring3_duration_seconds,row.ring4_duration_seconds,row.ring5_duration_seconds,row.ring6_duration_seconds].map(Number);
+    if (!(a > 0 && b > a && c > b && d > c && e > d && f > e && f <= 55 && times.every((v) => Number.isInteger(v) && v >= 5 && v <= 3600))) {
+      toast.error("رتّب مسافات النطاقات الستة تصاعدياً، وحدد مدة كل نطاق بين 5 و3600 ثانية");
       return;
     }
     setSaving(row.dispatch_type);
@@ -116,9 +126,15 @@ export default function AdminDispatchZones() {
       p_ring1_max_km: a,
       p_ring2_max_km: b,
       p_ring3_max_km: c,
-      p_ring1_duration_seconds: t1,
-      p_ring2_duration_seconds: t2,
-      p_ring3_duration_seconds: t3,
+      p_ring4_max_km: d,
+      p_ring5_max_km: e,
+      p_ring6_max_km: f,
+      p_ring1_duration_seconds: times[0],
+      p_ring2_duration_seconds: times[1],
+      p_ring3_duration_seconds: times[2],
+      p_ring4_duration_seconds: times[3],
+      p_ring5_duration_seconds: times[4],
+      p_ring6_duration_seconds: times[5],
     });
     setSaving(null);
     if (error) toast.error(error.message);
@@ -136,7 +152,7 @@ export default function AdminDispatchZones() {
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="text-xl font-black">التحكم بنطاقات توزيع الطلبات</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          كل مرحلة لها مسافة ومدة زمنية مستقلة. لا ينتقل الطلب إلى النطاق التالي إلا بعد انتهاء مدة النطاق الحالية فعلياً. مثال: 3 ثم 5 ثم 10 كم تعني الإرسال الأول من 0 إلى 3، والثاني من أكثر من 3 إلى 5، والثالث من أكثر من 5 إلى 10 كم. لا ينتقل الطلب خارج الحد الذي تحدده الإدارة.
+          كل طلب يمر بستة نطاقات مختلفة، ولكل نطاق مسافة ومدة مستقلة. ينتقل النظام تلقائياً للنطاق التالي فور انتهاء المدة، مع فحص كل ثانية. مثال: 3 ثم 5 ثم 10 كم تعني الإرسال الأول من 0 إلى 3، والثاني من أكثر من 3 إلى 5، والثالث من أكثر من 5 إلى 10 كم. لا ينتقل الطلب خارج الحد الذي تحدده الإدارة.
         </p>
       </div>
 
@@ -167,9 +183,12 @@ export default function AdminDispatchZones() {
             {row.inherited && <span className="rounded-full bg-muted px-2 py-1 text-[10px]">يرث الإعداد الأقرب</span>}
           </div>
           {([
-            { key: "ring1_max_km", label: "الإرسال الأول — قريب" },
-            { key: "ring2_max_km", label: "الإرسال الثاني — متوسط" },
-            { key: "ring3_max_km", label: "الإرسال الثالث — بعيد" },
+            { key: "ring1_max_km", label: "الإرسال الأول — الأقرب" },
+            { key: "ring2_max_km", label: "الإرسال الثاني" },
+            { key: "ring3_max_km", label: "الإرسال الثالث" },
+            { key: "ring4_max_km", label: "الإرسال الرابع" },
+            { key: "ring5_max_km", label: "الإرسال الخامس" },
+            { key: "ring6_max_km", label: "الإرسال السادس — الأبعد" },
           ] as const).map((field, i) => (
             <label key={field.key} className="block text-sm font-semibold">
               {field.label}
@@ -178,14 +197,17 @@ export default function AdminDispatchZones() {
                 <span className="text-xs text-muted-foreground">كم</span>
               </div>
               <span className="text-[11px] text-muted-foreground">
-                {i === 0 ? "من موقع الزبون إلى هذا الحد" : i === 1 ? "من بعد " + row.ring1_max_km + " إلى هذا الحد" : "من بعد " + row.ring2_max_km + " إلى هذا الحد"} كم
+                {i === 0 ? "من موقع الزبون إلى هذا الحد" : "من بعد " + (i === 1 ? row.ring1_max_km : i === 2 ? row.ring2_max_km : i === 3 ? row.ring3_max_km : i === 4 ? row.ring4_max_km : row.ring5_max_km) + " إلى هذا الحد"} كم
               </span>
             </label>
           ))}
           {([
-            { key: "ring1_duration_seconds", label: "وقت النطاق الأول" },
-            { key: "ring2_duration_seconds", label: "وقت النطاق الثاني" },
-            { key: "ring3_duration_seconds", label: "وقت النطاق الثالث" },
+            { key: "ring1_duration_seconds", label: "مدة النطاق الأول" },
+            { key: "ring2_duration_seconds", label: "مدة النطاق الثاني" },
+            { key: "ring3_duration_seconds", label: "مدة النطاق الثالث" },
+            { key: "ring4_duration_seconds", label: "مدة النطاق الرابع" },
+            { key: "ring5_duration_seconds", label: "مدة النطاق الخامس" },
+            { key: "ring6_duration_seconds", label: "مدة النطاق السادس" },
           ] as const).map((field) => (
             <label key={field.key} className="block text-sm font-semibold">
               {field.label}
@@ -193,11 +215,11 @@ export default function AdminDispatchZones() {
                 <input type="number" min={5} max={3600} step={1} value={row[field.key]} onChange={(e) => update(row.dispatch_type, field.key, e.target.value)} className="w-full rounded-xl border bg-background p-3" />
                 <span className="text-xs text-muted-foreground">ثانية</span>
               </div>
-              <span className="text-[11px] text-muted-foreground">مدة حقيقية قبل الانتقال للنطاق التالي</span>
+              <span className="text-[11px] text-muted-foreground">مدة مستقلة؛ ينتقل تلقائياً للنطاق التالي عند انتهائها</span>
             </label>
           ))}
           <button disabled={saving === row.dispatch_type} onClick={() => void save(row)} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">
-            {saving === row.dispatch_type ? "جارٍ الحفظ..." : "حفظ نطاقات هذه الفئة"}
+            {saving === row.dispatch_type ? "جارٍ الحفظ..." : "حفظ النطاقات الستة لهذه الفئة"}
           </button>
         </div>
       ))}
