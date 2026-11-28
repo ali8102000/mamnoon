@@ -6,7 +6,8 @@ import { useAuth } from "@/lib/auth-context";
 import { palette, radius, space } from "@/styles/theme";
 
 type UserRow = { id: string; full_name: string | null; phone: string | null; email: string | null };
-type Coupon = { id: string; code: string; type: string; value: number; max_uses: number; used_count?: number; active: boolean; expires_at?: string | null; min_amount?: number };
+type Coupon = { id: string; code: string; type: string; value: number; max_uses: number; used_count?: number; active: boolean; expires_at?: string | null; min_amount?: number; category_key?: string };
+type IssuedCoupon = { coupon_id:string; code:string; category_key:string; full_name:string|null; phone:string|null; assigned_at:string; used:boolean; active:boolean; expires_at:string|null; discount_type:string; discount_value:number };
 type Tx = { id: string; user_id: string; amount: number; type: string; status: string; created_at: string; profiles?: { full_name?: string; phone?: string } };
 type SubsidyReport = { payable_count?: number; payable_total?: number; pending_count?: number; pending_total?: number; void_count?: number };
 type Tab = "wallet" | "coupons" | "transactions";
@@ -29,6 +30,7 @@ export default function AdminFinanceScreen() {
   const [note, setNote] = useState("");
   const [kind, setKind] = useState<"credit" | "debit">("credit");
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [issuedCoupons, setIssuedCoupons] = useState<IssuedCoupon[]>([]);
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [subsidyReport, setSubsidyReport] = useState<SubsidyReport | null>(null);
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
@@ -40,6 +42,7 @@ export default function AdminFinanceScreen() {
   const [maxUses, setMaxUses] = useState("100");
   const [minAmount, setMinAmount] = useState("0");
   const [target, setTarget] = useState("customers");
+  const [categoryKey, setCategoryKey] = useState<"taxi"|"large_vehicle"|"technician">("taxi");
   const [busy, setBusy] = useState(false);
 
   const invoke = useCallback(async (body: Record<string, unknown>) => {
@@ -98,6 +101,8 @@ export default function AdminFinanceScreen() {
       const data = await invoke({ action: "list" });
       setCoupons(data.coupons ?? []);
       setTransactions(data.transactions ?? []);
+      const issued = await invoke({ action: "list_coupon_issued" });
+      setIssuedCoupons(issued.codes ?? []);
       void loadCouponMetrics();
     } catch (e: any) {
       setError(String(e?.message || "تعذر تحميل البيانات"));
