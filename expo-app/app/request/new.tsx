@@ -1994,6 +1994,19 @@ export default function NewRequest() {
                 ? "حرّك الخريطة حتى تصبح النقطة تحت الدبوس"
                 : "حرّك الخريطة حتى تصبح الوجهة تحت الدبوس"}
             </Text>
+            {!isTaxi && (
+              <TouchableOpacity
+                onPress={locateMe}
+                disabled={locationLoading}
+                style={styles.mapLocateButton}
+                accessibilityRole="button"
+                accessibilityLabel="تحديد موقعي الحالي على الخريطة"
+              >
+                {locationLoading
+                  ? <ActivityIndicator color={palette.brand} size="small" />
+                  : <Text style={styles.mapLocateButtonText}>◎ موقعي</Text>}
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => setServiceMapExpanded(true)}
               style={styles.mapExpandButton}
@@ -2569,6 +2582,8 @@ const styles = StyleSheet.create({
   mapContainer: { width: "100%", alignSelf: "center", borderRadius: 22, overflow: "hidden", marginTop: 8, marginHorizontal: 0, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, elevation: 3 },
   mapExpandButton: { position: "absolute", top: 12, right: 12, minHeight: 38, paddingHorizontal: 13, borderRadius: 13, backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: palette.gold, alignItems: "center", justifyContent: "center", elevation: 5 },
   mapExpandButtonText: { color: palette.brand, fontSize: 12, fontWeight: "900" },
+  mapLocateButton: { position: "absolute", right: 12, bottom: 48, minHeight: 42, paddingHorizontal: 14, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.gold, justifyContent: "center", alignItems: "center", elevation: 7, zIndex: 10 },
+  mapLocateButtonText: { color: palette.brand, fontWeight: "900", fontSize: 12 },
   expandedMapScreen: { flex: 1, backgroundColor: "#e5edf5" },
   expandedMapSearchWrap: { position: "absolute", top: 52, left: 14, right: 14, zIndex: 20 },
   expandedMapSearchRow: { minHeight: 52, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.gold, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, elevation: 8 },
