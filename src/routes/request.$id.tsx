@@ -431,7 +431,7 @@ function RequestDetail() {
   }
 
   async function payRequestWithZainCash() {
-    if (!session || myRole !== "customer" || paymentBusy || req.payment_method === "zaincash") return;
+    if (!session || myRole !== "customer" || paymentBusy || ["zaincash","customer_wallet"].includes(req.payment_method ?? "")) return;
     setPaymentBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke("zaincash-create-payment", {
@@ -621,7 +621,7 @@ function RequestDetail() {
       </div>
 
       <div className="px-5 py-4 space-y-3">
-        {myRole === "customer" && ["accepted","in_progress","completed"].includes(req.status) && req.payment_method !== "zaincash" && Number(req.customer_payable ?? req.customer_price ?? req.price_estimate) > 0 && (
+        {myRole === "customer" && ["accepted","in_progress","completed"].includes(req.status) && !["zaincash","customer_wallet"].includes(req.payment_method ?? "") && Number(req.customer_payable ?? req.customer_price ?? req.price_estimate) > 0 && (
           <div className="glass rounded-xl px-3 py-2 flex items-center justify-between gap-2">
             <div className="min-w-0"><div className="text-xs font-black">الدفع الإلكتروني · زين كاش</div><div className="text-[10px] text-muted-foreground">{paymentGatewayEnabled ? "الدفع متاح" : "غير متاح حالياً"}</div></div>
             <Button type="button" size="sm" onClick={() => void payRequestWithZainCash()} disabled={paymentBusy || !paymentGatewayEnabled} className="h-9 shrink-0">
