@@ -1986,15 +1986,6 @@ export default function RequestDetail() {
                 )}
               </View>
             )}
-            {isCustomer && ["pending", "searching"].includes(request.status) && (
-              <View style={{ width: "100%", marginTop: 8, padding: 12, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line }}>
-                <Text style={{ color: palette.ink, fontSize: 12, fontWeight: "900", textAlign: "right" }}>تأخر القبول؟ تگدر ترفع السعر حتى تشجع مزودين أكثر</Text>
-                <TextInput value={retryPriceIncrease} onChangeText={setRetryPriceIncrease} keyboardType="number-pad" placeholder="مقدار الزيادة بالدينار" placeholderTextColor={palette.muted} style={{ marginTop: 8, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.canvas, color: palette.ink, borderRadius: 12, padding: 11, textAlign: "center", fontWeight: "900" }} />
-                <TouchableOpacity disabled={retryingDispatch} onPress={retryDispatch} style={[styles.actionBtn, { marginTop: 8, opacity: retryingDispatch ? 0.5 : 1 }]}>
-                  <Text style={styles.actionBtnText}>{retryingDispatch ? "جارٍ تحديث السعر..." : "رفع السعر وإعادة البحث"}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
           </View>
         )}
         {isCustomer && request.status === "cancelled" && request.payment_method === "zaincash" && (
