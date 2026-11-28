@@ -1766,7 +1766,7 @@ export default function RequestDetail() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={[styles.container, acceptedMapMode && styles.containerMap]}>
+      <View style={[styles.container, showRequestMap && styles.containerMap]}>
         {showRequestMap && (
           <MapView
             ref={acceptedMapRef}
