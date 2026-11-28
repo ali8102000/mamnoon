@@ -18,6 +18,29 @@ create index if not exists coupons_issued_to_user_idx
   on public.coupons(issued_to_user_id)
   where issued_to_user_id is not null;
 
+create or replace function public.sync_coupon_category_key()
+returns trigger
+language plpgsql
+set search_path=public
+as $function$
+begin
+  new.category_key := case
+    when cardinality(new.applicable_request_types)=1 and new.applicable_request_types @> array['service']::text[] then 'technician'
+    when cardinality(new.applicable_request_types)=1 and new.applicable_request_types @> array['taxi']::text[]
+         and new.applicable_vehicle_categories = array['large']::text[] then 'large_vehicle'
+    when cardinality(new.applicable_request_types)=1 and new.applicable_request_types @> array['taxi']::text[] then 'taxi'
+    else 'mixed'
+  end;
+  return new;
+end;
+$function$;
+
+drop trigger if exists sync_coupon_category_key_before_write on public.coupons;
+create trigger sync_coupon_category_key_before_write
+before insert or update of applicable_request_types,applicable_vehicle_categories,applicable_service_slugs
+on public.coupons
+for each row execute function public.sync_coupon_category_key();
+
 update public.coupons
 set category_key = case
   when cardinality(applicable_request_types)=1 and applicable_request_types @> array['service']::text[] then 'technician'
