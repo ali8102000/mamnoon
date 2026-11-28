@@ -15,7 +15,7 @@ import {
   PanResponder,
   Modal,
 } from "react-native";
-import MapView, { AnimatedRegion, Marker, Polyline } from "react-native-maps";
+import MapView, { AnimatedRegion, Circle, Marker, Polyline } from "react-native-maps";
 import { LinearGradient } from "expo-linear-gradient";
 import { SvgUri } from "react-native-svg";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
@@ -325,6 +325,7 @@ export default function RequestDetail() {
   const [cashReceivedInput, setCashReceivedInput] = useState("");
   const [paymentGatewayEnabled, setPaymentGatewayEnabled] = useState(false);
   const [dispatchClock, setDispatchClock] = useState(Date.now());
+  const [searchSweepRadius, setSearchSweepRadius] = useState(180);
   const [urgencyAllowed, setUrgencyAllowed] = useState(false);
   const [urgencyBusy, setUrgencyBusy] = useState(false);
 
@@ -344,10 +345,20 @@ export default function RequestDetail() {
       (request.type === "service" && roles.includes("worker"))),
   );
   const isActive = request?.status === "in_progress" || request?.status === "accepted";
+  const searchingMapMode = Boolean(
+    request && isCustomer && ["pending", "searching"].includes(request.status) &&
+    request.pickup_lat != null && request.pickup_lng != null
+  );
   const acceptedMapMode = Boolean(
     request && (isProvider || isCustomer) && isActive &&
     (request.type === "taxi" || request.type === "service")
   );
+  const showRequestMap = acceptedMapMode || searchingMapMode;
+  useEffect(() => {
+    if (!searchingMapMode) return;
+    const timer = setInterval(() => setSearchSweepRadius((radius) => radius >= 2200 ? 180 : radius + 140), 180);
+    return () => clearInterval(timer);
+  }, [searchingMapMode, request?.id]);
   const providerLiveLocation = isCustomer ? otherLocation : myLocation;
   useEffect(() => {
     setTrackingSheetExpanded(false);
@@ -1756,7 +1767,7 @@ export default function RequestDetail() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.container, acceptedMapMode && styles.containerMap]}>
-        {acceptedMapMode && (
+        {showRequestMap && (
           <MapView
             ref={acceptedMapRef}
             key={`${request.id}:${request.status}`}
@@ -1764,10 +1775,10 @@ export default function RequestDetail() {
             initialRegion={{
               latitude: mapRouteOrigin && mapRouteTarget
                 ? (mapRouteOrigin.latitude + mapRouteTarget.latitude) / 2
-                : mapRouteTarget?.latitude ?? 33.3152,
+                : (searchingMapMode ? request.pickup_lat : mapRouteTarget?.latitude) ?? 33.3152,
               longitude: mapRouteOrigin && mapRouteTarget
                 ? (mapRouteOrigin.longitude + mapRouteTarget.longitude) / 2
-                : mapRouteTarget?.longitude ?? 44.3661,
+                : (searchingMapMode ? request.pickup_lng : mapRouteTarget?.longitude) ?? 44.3661,
               latitudeDelta: mapRouteOrigin && mapRouteTarget
                 ? Math.max(0.018, Math.abs(mapRouteTarget.latitude - mapRouteOrigin.latitude) * 1.6)
                 : 0.018,
@@ -1784,6 +1795,12 @@ export default function RequestDetail() {
             rotateEnabled
             onPanDrag={() => setMapFollowEnabled(false)}
           >
+            {searchingMapMode && request.pickup_lat != null && request.pickup_lng != null && (
+              <>
+                <Circle center={{ latitude: request.pickup_lat, longitude: request.pickup_lng }} radius={searchSweepRadius} fillColor="#7566D82A" strokeColor="#7566D8B8" strokeWidth={2} />
+                <Circle center={{ latitude: request.pickup_lat, longitude: request.pickup_lng }} radius={2600} fillColor="#7566D80A" strokeColor="#7566D855" strokeWidth={1} />
+              </>
+            )}
             {roadRoutePoints.length > 1 && (
               <>
                 <Polyline coordinates={roadRoutePoints} strokeColor="#FFFFFF" strokeWidth={15} lineCap="round" lineJoin="round" />
