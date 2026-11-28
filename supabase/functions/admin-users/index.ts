@@ -51,6 +51,7 @@ function searchTerms(raw: string) {
 }
 
 Deno.serve(async (req: Request) => {
+  let bodyForError: unknown = null;
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   try {
@@ -121,6 +122,7 @@ Deno.serve(async (req: Request) => {
     };
     const admin = createClient(url, service, { global: { fetch: createSupabaseFetch(service) }, auth: { persistSession: false, autoRefreshToken: false } });
     const body = await req.json().catch(() => null);
+    bodyForError = body;
     if (!body || typeof body.action !== "string") return json({ error: "invalid_request" }, 400);
     const requireAdmin = async () => {
       const { data, error } = await caller.rpc("has_admin_access", { p_user_id: auth.user.id });
@@ -735,13 +737,34 @@ Deno.serve(async (req: Request) => {
         admin.from("worker_services").select("service_id").eq("worker_id", id),
         admin.from("services").select("id,name_ar").order("sort_order", { ascending: true }).limit(200),
       ]);
-      const failed = [profile, roles, block, driver, naqil, worker, transactions, requests, verifications, partnerBusinesses, partnerApplications, workerServices, availableServices].find((r: any) => r.error);
-      if (failed?.error) return json({ error: "user_detail_load_failed" }, 500);
+      const detailResults = [
+        ["profile", profile], ["roles", roles], ["block", block], ["driver_profile", driver],
+        ["naqil_profile", naqil], ["worker_profile", worker], ["transactions", transactions],
+        ["requests", requests], ["verifications", verifications], ["partner_business_profiles", partnerBusinesses],
+        ["partner_applications", partnerApplications], ["worker_services", workerServices],
+        ["available_services", availableServices],
+      ] as const;
+      const failedDetails = detailResults.filter(([, result]: any) => result?.error);
+      if (failedDetails.length) {
+        console.error("[admin-users:detail] database reads failed", failedDetails.map(([name, result]: any) => ({
+          query: name, code: result.error?.code, message: result.error?.message,
+        })));
+        return json({ error: "user_detail_load_failed", failed: failedDetails.map(([name]) => name) }, 500);
+      }
       const signedVerifications = await Promise.all((verifications.data ?? []).map(async (row: any) => {
         const sign = async (path: string | null) => {
           if (!path) return null;
-          const { data, error } = await admin.storage.from("provider-verification").createSignedUrl(path, 3600);
-          return error ? null : data?.signedUrl ?? null;
+          try {
+            const { data, error } = await admin.storage.from("provider-verification").createSignedUrl(path, 3600);
+            if (error) {
+              console.error("[admin-users:detail] verification image signing failed", error.message);
+              return null;
+            }
+            return data?.signedUrl ?? null;
+          } catch (error) {
+            console.error("[admin-users:detail] verification image signing threw", String(error));
+            return null;
+          }
         };
         const vehicleVideoPath = typeof row.metadata?.vehicleVideoPath === "string" ? row.metadata.vehicleVideoPath : null;
         const [face, front, back, vehicle, vehicleVideo] = await Promise.all([
@@ -1417,6 +1440,11 @@ Deno.serve(async (req: Request) => {
     return json({ error: "unknown_action" }, 400);
   } catch (error) {
     const message = String(error);
+    console.error("[admin-users] request failed", {
+      action: (bodyForError as { action?: string } | null)?.action ?? "unknown",
+      error: message,
+      stack: error instanceof Error ? error.stack : null,
+    });
     if (message.includes("missing_")) return json({ error: "server_configuration_incomplete" }, 503);
     if (message.includes("permission_required:")) return json({ error: "permission_required" }, 403);
     if (message.includes("admin_required")) return json({ error: "admin_required" }, 403);
