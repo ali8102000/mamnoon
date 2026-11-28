@@ -2119,7 +2119,6 @@ export default function RequestDetail() {
                 )}
               </View>
             )}
-            </>}
           </View>
         )}
         {isCustomer && request.status === "cancelled" && request.payment_method === "zaincash" && (
