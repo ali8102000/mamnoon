@@ -1186,10 +1186,6 @@ export default function NewRequest() {
     const proposedUnitPrice = customerPrice.trim() ? Number(customerPrice.replace(/[^0-9]/g, "")) : null;
     const servicePriceMultiplier = extraWorkers + 1 + (workerLevel === "khabir" ? 1 : 0);
     const proposedPrice = proposedUnitPrice === null ? null : (isTaxi ? proposedUnitPrice : proposedUnitPrice * servicePriceMultiplier);
-    if (isLargeVehicle && customerPrice.trim() && (proposedPrice === null || !LARGE_VEHICLE_CUSTOMER_BUDGETS.includes(proposedPrice as typeof LARGE_VEHICLE_CUSTOMER_BUDGETS[number]))) {
-      Alert.alert("الميزانية غير صحيحة", "اختَر ميزانية من الاختصارات المتاحة فقط.");
-      return;
-    }
     if (!isTaxi && pricingMode !== "negotiable" && (proposedUnitPrice === null || !Number.isSafeInteger(proposedUnitPrice) || proposedUnitPrice < 250 || proposedUnitPrice % 250 !== 0)) {
       Alert.alert("الأجر غير صحيح", "اكتب أجراً صحيحاً لا يقل عن 250 ديناراً ويكون من مضاعفات 250.");
       return;
@@ -1677,9 +1673,16 @@ export default function NewRequest() {
                         </TouchableOpacity>
                       ))}
                     </View>
-                    <View style={styles.largeVehiclePriceHighlight}>
-                      <Text style={styles.largeVehiclePriceLabel}>{customerPrice ? "ميزانيتك المحددة" : "ما محددت ميزانية — توصلك عروض أصحاب السيارات"}</Text>
-                      {customerPrice ? <Text style={{ color: palette.brand, fontSize: 20, fontWeight: "900", textAlign: "center" }}>{Number(customerPrice).toLocaleString("ar-IQ")} د.ع</Text> : null}
+                    <View style={{ borderWidth: 2, borderColor: "#16A34A", backgroundColor: "#F0FDF4", borderRadius: 14, padding: 10, marginTop: 8 }}>
+                      <Text style={{ color: "#166534", fontSize: 12, fontFamily: "Tajawal_900Black", fontWeight: "900", textAlign: "right", marginBottom: 6 }}>اكتب ميزانيتك أو اختَر اختصاراً</Text>
+                      <TextInput
+                        value={customerPrice}
+                        onChangeText={(value) => setCustomerPrice(value.replace(/[^0-9]/g, ""))}
+                        placeholder="اكتب المبلغ بالدينار"
+                        placeholderTextColor="#4B7A5A"
+                        keyboardType="numeric"
+                        style={{ minHeight: 48, borderWidth: 1, borderColor: "#16A34A", borderRadius: 10, backgroundColor: "#FFFFFF", color: "#14532D", paddingHorizontal: 12, textAlign: "center", fontSize: 20, fontFamily: "Tajawal_900Black", fontWeight: "900" }}
+                      />
                     </View>
                     <Text style={styles.taxiHintText}>ماكو تسعير بالكيلومتر؛ أصحاب السيارات يرسلون عروضهم وتختار الأنسب.</Text>
                     <TouchableOpacity onPress={() => setUrgencyEnabled((value) => !value)} style={{ marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: urgencyEnabled ? palette.brand : palette.line, backgroundColor: urgencyEnabled ? palette.brandSoft : palette.surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>

@@ -624,10 +624,6 @@ function NewRequest() {
 
     const unitPriceNum = parseInt(customerPrice.replace(/[^0-9]/g, ""), 10);
     const priceNum = type === "service" && Number.isFinite(unitPriceNum) ? unitPriceNum * (finalWorkers + (level === "khabir" ? 1 : 0)) : unitPriceNum;
-    if (vehicle === "large" && customerPrice.trim() && (priceNum === null || !LARGE_VEHICLE_CUSTOMER_BUDGETS.includes(priceNum as typeof LARGE_VEHICLE_CUSTOMER_BUDGETS[number]))) {
-      toast.error("اختَر ميزانية من الاختصارات المتاحة فقط");
-      return;
-    }
     if (type === "service" && pricingMode !== "negotiable" && !(unitPriceNum > 0)) {
       toast.error("اكتب المبلغ اللي تريد تدفعه");
       return;
@@ -1218,7 +1214,7 @@ function NewRequest() {
             {vehicle === "large" ? (
               <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3 space-y-2">
                 <div className="font-black text-sm text-foreground">طلب سيارة كبيرة</div>
-                <div className="text-xs text-muted-foreground">اختَر ميزانيتك من الاختصارات فقط، أو اتركها فارغة حتى توصلك عروض أصحاب السيارات</div>
+                <div className="text-xs text-muted-foreground">اكتب ميزانيتك بالدينار أو اختَر أحد الاختصارات، والرقم ينزل بالخانة الخضراء</div>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {LARGE_VEHICLE_CUSTOMER_BUDGETS.map((amount) => (
                     <button key={amount} type="button" onClick={() => setCustomerPrice(customerPrice === String(amount) ? "" : String(amount))} className={`rounded-xl border px-2 py-2 text-xs font-black transition ${customerPrice === String(amount) ? "border-orange-500 bg-orange-100 text-orange-800 dark:bg-orange-950/80 dark:text-orange-200 dark:border-orange-700 ring-1 ring-orange-300" : "border-orange-200 bg-white dark:bg-black dark:text-slate-100 dark:border-slate-700 text-slate-700"}`}>
@@ -1226,9 +1222,9 @@ function NewRequest() {
                     </button>
                   ))}
                 </div>
-                <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-3 text-center shadow-sm dark:border-amber-700 dark:bg-amber-950/30">
-                  <p className="mb-1.5 text-right text-[11px] font-black text-amber-800 dark:text-amber-200">{customerPrice ? "ميزانيتك المحددة" : "ما محددت ميزانية"}</p>
-                  {customerPrice ? <p className="text-xl font-black text-amber-900 dark:text-amber-100">{Number(customerPrice).toLocaleString("ar-IQ")} د.ع</p> : null}
+                <div className="rounded-xl border-2 border-green-600 bg-green-50 p-3 shadow-sm dark:border-green-500 dark:bg-green-950/30">
+                  <label className="mb-2 block text-right text-xs font-black text-green-800 dark:text-green-200">اكتب ميزانيتك أو اختَر اختصاراً</label>
+                  <input inputMode="numeric" type="text" value={customerPrice} onChange={(e) => setCustomerPrice(e.target.value.replace(/[^0-9]/g, ""))} placeholder="اكتب المبلغ بالدينار" className="w-full rounded-lg border border-green-600 bg-white px-4 py-3 text-center text-xl font-black text-green-900 outline-none focus:ring-2 focus:ring-green-400 dark:bg-black dark:text-green-100" />
                 </div>
                 <label className="flex items-center justify-between gap-3 rounded-xl border border-orange-300/60 bg-white/70 dark:bg-black/40 p-3">
                   <span className="text-right"><span className="block text-sm font-black">⚡ وضع الاستعجال</span><span className="block text-[11px] text-muted-foreground">يظهر طلب السيارة للمزودين كطلب مستعجل</span></span>
