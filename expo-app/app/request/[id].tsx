@@ -1217,6 +1217,22 @@ export default function RequestDetail() {
     } finally { setPaymentBusy(false); }
   }
 
+  async function payRequestFromWallet() {
+    if (!user || !request || !isCustomer || paymentBusy || request.payment_method === "customer_wallet") return;
+    setPaymentBusy(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("pay_service_request_from_customer_wallet", { _request_id: request.id });
+      if (error) throw error;
+      Alert.alert("تم الدفع", `تم خصم ${Number(data?.amount_iqd ?? 0).toLocaleString("ar-IQ")} د.ع من محفظتك الداخلية.`);
+      await loadRequest();
+    } catch (error: any) {
+      const raw = String(error?.message ?? "");
+      Alert.alert("تعذر الدفع", raw.includes("insufficient_wallet_balance") ? "رصيد محفظتك ما يكفي لإتمام الدفع." : raw || "حاول مرة ثانية.");
+    } finally {
+      setPaymentBusy(false);
+    }
+  }
+
   async function sendMessage(text?: string) {
     const msg = (text || newMsg).trim();
     if (!msg) return;
@@ -1476,7 +1492,7 @@ export default function RequestDetail() {
   function completeRide() {
     if (!request || !isProvider || request.status !== "in_progress" || transitionBusy) return;
     const fare = Number(request.customer_payable ?? request.customer_price ?? request.price_estimate ?? 0);
-    setCashReceivedInput(request.payment_method === "zaincash" ? "0" : String(Math.max(0, Math.round(fare))));
+    setCashReceivedInput(["zaincash","customer_wallet"].includes(request.payment_method ?? "") ? "0" : String(Math.max(0, Math.round(fare))));
     setCashSettlementOpen(true);
   }
 
@@ -1488,7 +1504,7 @@ export default function RequestDetail() {
       Alert.alert("المبلغ غير صحيح", "اكتب المبلغ النقدي الذي استلمته من الزبون.");
       return;
     }
-    if (request.payment_method === "zaincash" && amount !== 0) {
+    if (["zaincash","customer_wallet"].includes(request.payment_method ?? "") && amount !== 0) {
       Alert.alert("الدفع إلكتروني", "هذا الطلب مدفوع إلكترونياً؛ لا تدخل مبلغاً نقدياً.");
       return;
     }
@@ -2062,6 +2078,17 @@ export default function RequestDetail() {
         )}
         {isCustomer && ["accepted","in_progress","completed"].includes(request.status) && request.payment_method !== "zaincash" && Number(request.customer_payable ?? request.customer_price ?? request.price_estimate) > 0 && (
           <View style={styles.paymentCompact}><View style={{ flex: 1 }}><Text style={styles.paymentCompactTitle}>الدفع الإلكتروني · زين كاش</Text><Text style={styles.paymentCompactHint}>{paymentGatewayEnabled ? "الدفع متاح" : "غير متاح حالياً"}</Text></View><TouchableOpacity onPress={payRequestWithZainCash} disabled={paymentBusy || !paymentGatewayEnabled} style={[styles.paymentCompactButton, (!paymentGatewayEnabled || paymentBusy) && { opacity: 0.5 }]}><Text style={styles.paymentCompactButtonText}>{paymentBusy ? "..." : "ادفع"}</Text></TouchableOpacity></View>
+        )}
+        {isCustomer && ["accepted","in_progress"].includes(request.status) && !["zaincash","customer_wallet"].includes(request.payment_method ?? "") && Number(request.customer_payable ?? request.customer_price ?? request.price_estimate) > 0 && (
+          <View style={[styles.paymentCompact, { marginTop: 10 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.paymentCompactTitle}>الدفع من المحفظة الداخلية</Text>
+              <Text style={styles.paymentCompactHint}>يُخصم المبلغ بعد خصم الكوبون إن وُجد</Text>
+            </View>
+            <TouchableOpacity onPress={payRequestFromWallet} disabled={paymentBusy} style={[styles.paymentCompactButton, paymentBusy && { opacity: 0.5 }]}>
+              <Text style={styles.paymentCompactButtonText}>{paymentBusy ? "..." : "ادفع من المحفظة"}</Text>
+            </TouchableOpacity>
+          </View>
         )}
         {request.vehicle_category === "large" && isCustomer && ["pending", "searching"].includes(request.status) && (
           <View style={styles.largeOffersCard}>
