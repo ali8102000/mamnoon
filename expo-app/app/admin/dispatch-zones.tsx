@@ -14,9 +14,15 @@ type Row = {
   ring1_max_km: number;
   ring2_max_km: number;
   ring3_max_km: number;
+  ring4_max_km: number;
+  ring5_max_km: number;
+  ring6_max_km: number;
   ring1_duration_seconds: number;
   ring2_duration_seconds: number;
   ring3_duration_seconds: number;
+  ring4_duration_seconds: number;
+  ring5_duration_seconds: number;
+  ring6_duration_seconds: number;
   inherited?: boolean;
 };
 const TYPES: DispatchType[] = ["taxi", "large_driver", "technician"];
@@ -26,9 +32,9 @@ const LABELS: Record<DispatchType, string> = {
   technician: "الفنيون ومقدمو الخدمات",
 };
 const DEFAULTS: Record<DispatchType, Omit<Row, "governorate_key" | "category_key">> = {
-  taxi: { dispatch_type: "taxi", ring1_max_km: 1, ring2_max_km: 3, ring3_max_km: 5, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60 },
-  large_driver: { dispatch_type: "large_driver", ring1_max_km: 5, ring2_max_km: 25, ring3_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60 },
-  technician: { dispatch_type: "technician", ring1_max_km: 5, ring2_max_km: 25, ring3_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60 },
+  taxi: { dispatch_type: "taxi", ring1_max_km: 1, ring2_max_km: 2, ring3_max_km: 3, ring4_max_km: 4, ring5_max_km: 4.5, ring6_max_km: 5, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
+  large_driver: { dispatch_type: "large_driver", ring1_max_km: 5, ring2_max_km: 10, ring3_max_km: 20, ring4_max_km: 30, ring5_max_km: 40, ring6_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
+  technician: { dispatch_type: "technician", ring1_max_km: 5, ring2_max_km: 10, ring3_max_km: 20, ring4_max_km: 30, ring5_max_km: 40, ring6_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60, ring4_duration_seconds: 60, ring5_duration_seconds: 60, ring6_duration_seconds: 60 },
 };
 
 export default function AdminDispatchZonesScreen() {
@@ -74,7 +80,7 @@ export default function AdminDispatchZonesScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const update = (type: DispatchType, key: "ring1_max_km" | "ring2_max_km" | "ring3_max_km" | "ring1_duration_seconds" | "ring2_duration_seconds" | "ring3_duration_seconds", value: string) => {
+  const update = (type: DispatchType, key: "ring1_max_km" | "ring2_max_km" | "ring3_max_km" | "ring4_max_km" | "ring5_max_km" | "ring6_max_km" | "ring1_duration_seconds" | "ring2_duration_seconds" | "ring3_duration_seconds" | "ring4_duration_seconds" | "ring5_duration_seconds" | "ring6_duration_seconds", value: string) => {
     setRows((current) => current.map((row) =>
       row.dispatch_type === type ? { ...row, [key]: value === "" ? 0 : Number(value), inherited: false } : row
     ));
@@ -84,11 +90,12 @@ export default function AdminDispatchZonesScreen() {
     const first = Number(row.ring1_max_km);
     const second = Number(row.ring2_max_km);
     const third = Number(row.ring3_max_km);
-    const t1 = Number(row.ring1_duration_seconds);
-    const t2 = Number(row.ring2_duration_seconds);
-    const t3 = Number(row.ring3_duration_seconds);
-    if (!(first > 0 && second > first && third > second && third <= 55 && [t1,t2,t3].every((v) => Number.isInteger(v) && v >= 5 && v <= 3600))) {
-      Alert.alert("إعدادات غير صحيحة", "رتّب المسافات تصاعدياً، وحدد مدة كل نطاق بين 5 و3600 ثانية.");
+    const fourth = Number(row.ring4_max_km);
+    const fifth = Number(row.ring5_max_km);
+    const sixth = Number(row.ring6_max_km);
+    const times = [row.ring1_duration_seconds,row.ring2_duration_seconds,row.ring3_duration_seconds,row.ring4_duration_seconds,row.ring5_duration_seconds,row.ring6_duration_seconds].map(Number);
+    if (!(first > 0 && second > first && third > second && fourth > third && fifth > fourth && sixth > fifth && sixth <= 55 && times.every((v) => Number.isInteger(v) && v >= 5 && v <= 3600))) {
+      Alert.alert("إعدادات غير صحيحة", "رتّب مسافات النطاقات الستة تصاعدياً، وحدد مدة كل نطاق بين 5 و3600 ثانية.");
       return;
     }
     setSaving(row.dispatch_type);
@@ -99,15 +106,21 @@ export default function AdminDispatchZonesScreen() {
       p_ring1_max_km: first,
       p_ring2_max_km: second,
       p_ring3_max_km: third,
-      p_ring1_duration_seconds: t1,
-      p_ring2_duration_seconds: t2,
-      p_ring3_duration_seconds: t3,
+      p_ring4_max_km: fourth,
+      p_ring5_max_km: fifth,
+      p_ring6_max_km: sixth,
+      p_ring1_duration_seconds: times[0],
+      p_ring2_duration_seconds: times[1],
+      p_ring3_duration_seconds: times[2],
+      p_ring4_duration_seconds: times[3],
+      p_ring5_duration_seconds: times[4],
+      p_ring6_duration_seconds: times[5],
     });
     setSaving(null);
     if (error) {
       Alert.alert("تعذر تأكيد النطاق", error.message);
     } else {
-      Alert.alert("تم التأكيد والحفظ", "انحفظت مسافات النطاقات الثلاثة لهذه الفئة والمحافظة. محرك التوزيع يقرأها عند مراحل إرسال الطلب.");
+      Alert.alert("تم التأكيد والحفظ", "انحفظت مسافات ومدد النطاقات الستة لهذه الفئة والمحافظة. ينتقل الطلب تلقائياً بعد انتهاء مدة كل نطاق.");
       await load();
     }
   };
@@ -151,9 +164,12 @@ export default function AdminDispatchZonesScreen() {
             {row.inherited && <Text style={styles.inherited}>يرث الإعداد الأقرب</Text>}
           </View>
           {([
-            { key: "ring1_max_km", label: "النطاق الأول — قريب" },
-            { key: "ring2_max_km", label: "النطاق الثاني — متوسط" },
-            { key: "ring3_max_km", label: "النطاق الثالث — بعيد" },
+            { key: "ring1_max_km", label: "النطاق الأول — الأقرب" },
+            { key: "ring2_max_km", label: "النطاق الثاني" },
+            { key: "ring3_max_km", label: "النطاق الثالث" },
+            { key: "ring4_max_km", label: "النطاق الرابع" },
+            { key: "ring5_max_km", label: "النطاق الخامس" },
+            { key: "ring6_max_km", label: "النطاق السادس — الأبعد" },
           ] as const).map((field, index) => (
             <View key={field.key}>
               <Text style={styles.label}>{field.label} (كم)</Text>
@@ -164,15 +180,18 @@ export default function AdminDispatchZonesScreen() {
                 style={styles.input}
               />
               <Text style={styles.hint}>
-                {index === 0 ? "من 0" : index === 1 ? "من " + row.ring1_max_km : "من " + row.ring2_max_km}
+                {index === 0 ? "من 0" : "من " + row[("ring" + index + "_max_km") as keyof Row]}
                 {" "}كم إلى القيمة المحددة
               </Text>
             </View>
           ))}
           {([
-            { key: "ring1_duration_seconds", label: "وقت النطاق الأول" },
-            { key: "ring2_duration_seconds", label: "وقت النطاق الثاني" },
-            { key: "ring3_duration_seconds", label: "وقت النطاق الثالث" },
+            { key: "ring1_duration_seconds", label: "مدة النطاق الأول" },
+            { key: "ring2_duration_seconds", label: "مدة النطاق الثاني" },
+            { key: "ring3_duration_seconds", label: "مدة النطاق الثالث" },
+            { key: "ring4_duration_seconds", label: "مدة النطاق الرابع" },
+            { key: "ring5_duration_seconds", label: "مدة النطاق الخامس" },
+            { key: "ring6_duration_seconds", label: "مدة النطاق السادس" },
           ] as const).map((field) => (
             <View key={field.key}>
               <Text style={styles.label}>{field.label} (ثانية)</Text>
@@ -190,11 +209,11 @@ export default function AdminDispatchZonesScreen() {
             onPress={() => void save(row)}
             style={[styles.saveButton, saving === row.dispatch_type && styles.disabled]}
           >
-            <Text style={styles.saveText}>{saving === row.dispatch_type ? "جارٍ التأكيد والحفظ..." : "تأكيد وحفظ النطاقات الثلاثة"}</Text>
+            <Text style={styles.saveText}>{saving === row.dispatch_type ? "جارٍ التأكيد والحفظ..." : "تأكيد وحفظ النطاقات الستة"}</Text>
           </TouchableOpacity>
         </View>
       ))}
-      <Text style={styles.note}>المراحل تُقرأ من إعدادات Supabase عند توزيع الطلبات. إذا خفّضت الإدارة النطاق، تُلغى العروض المعلقة الواقعة خارج الحد الجديد. حدود أهلية مقدم الخدمة واشتراكه تبقى مطبقة أيضاً.</Text>
+      <Text style={styles.note}>المراحل الست تُقرأ من إعدادات Supabase. عند انتهاء مدة أي نطاق ينتقل محرك التوزيع تلقائياً للنطاق التالي خلال دورة الفحص التالية (كل ثانية). تبقى حدود أهلية مقدم الخدمة واشتراكه مطبقة أيضاً.</Text>
     </ScrollView>
   );
 }
