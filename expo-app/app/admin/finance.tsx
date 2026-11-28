@@ -124,6 +124,18 @@ export default function AdminFinanceScreen() {
     catch (e: any) { Alert.alert("تعذر البحث", String(e?.message || "حاول مرة ثانية")); }
     finally { setBusy(false); }
   };
+  const searchCouponUsers = async () => {
+    if (query.trim().length < 2) { Alert.alert("البحث", "اكتب حرفين أو أكثر."); return; }
+    setBusy(true);
+    try {
+      const r = await invoke({ action: "search_coupon_users", query: query.trim() });
+      setUsers(r.users ?? []);
+      setSelected(null);
+    } catch (e: any) {
+      Alert.alert("تعذر البحث", String(e?.message || "حاول مرة ثانية"));
+    } finally { setBusy(false); }
+  };
+
   const adjustWallet = async () => {
     if (!selected || !/^\\d+(\\.\\d{1,2})?$/.test(amount) || Number(amount) <= 0) {
       Alert.alert("تحقق من البيانات", "اختار المستخدم واكتب مبلغاً صحيحاً أكبر من صفر."); return;
