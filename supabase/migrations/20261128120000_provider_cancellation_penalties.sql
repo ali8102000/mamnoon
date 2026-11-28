@@ -9,6 +9,30 @@ create table if not exists public.provider_cancellation_penalty_settings (
   updated_at timestamptz not null default now()
 );
 
+alter table public.service_requests
+  add column if not exists provider_cancellation_accepted_at timestamptz;
+
+create or replace function public.capture_provider_cancellation_acceptance_time()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $function$
+begin
+  if auth.uid() = old.provider_id then
+    update public.service_requests
+    set provider_cancellation_accepted_at = old.accepted_at
+    where id = old.request_id;
+  end if;
+  return old;
+end;
+$function$;
+
+drop trigger if exists trg_capture_provider_cancellation_acceptance_time on public.service_request_providers;
+create trigger trg_capture_provider_cancellation_acceptance_time
+before delete on public.service_request_providers
+for each row execute function public.capture_provider_cancellation_acceptance_time();
+
 insert into public.provider_cancellation_penalty_settings(id, enabled, grace_minutes, penalty_percent)
 values (true, false, 5, 10)
 on conflict (id) do nothing;
@@ -77,6 +101,7 @@ declare
   v_base numeric;
   v_amount bigint;
   v_balance bigint;
+  v_accepted_at timestamptz;
   v_provider uuid := auth.uid();
 begin
   if v_provider is null then raise exception 'unauthorized'; end if;
@@ -90,7 +115,8 @@ begin
   if not found then
     s.enabled := false; s.grace_minutes := 5; s.penalty_percent := 10;
   end if;
-  v_elapsed := greatest(0, extract(epoch from (now() - coalesce(r.accepted_at, r.created_at))) / 60.0);
+  select accepted_at into v_accepted_at from public.service_request_providers where request_id = _request_id and provider_id = v_provider;
+  v_elapsed := greatest(0, extract(epoch from (now() - coalesce(v_accepted_at, r.provider_cancellation_accepted_at, r.accepted_at, r.created_at))) / 60.0);
   v_rate := case
     when not coalesce(s.enabled, false) then 0
     when v_elapsed <= s.grace_minutes then s.penalty_percent / 2
@@ -173,7 +199,7 @@ begin
   select * into s from public.provider_cancellation_penalty_settings where id = true;
   if not found or not s.enabled or s.penalty_percent <= 0 then return new; end if;
 
-  v_elapsed := greatest(0, extract(epoch from (now() - coalesce(old.accepted_at, old.created_at))) / 60.0);
+  v_elapsed := greatest(0, extract(epoch from (now() - coalesce(old.provider_cancellation_accepted_at, old.accepted_at, old.created_at))) / 60.0);
   v_rate := case when v_elapsed <= s.grace_minutes then s.penalty_percent / 2 else s.penalty_percent end;
   v_base := greatest(0, coalesce(old.customer_payable, old.customer_price, old.price_estimate, 0));
   v_assessed := round(v_base * v_rate / 100.0)::bigint;
