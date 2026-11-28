@@ -2117,8 +2117,19 @@ export default function RequestDetail() {
               <Text style={styles.largeOffersEmpty}>بانتظار أصحاب السيارات يرسلون أسعارهم...</Text>
             ) : largeOffers.map((offer) => (
               <View key={offer.id} style={styles.largeOfferItem}>
-                <Text style={styles.largeOfferName}>{offer.profile?.full_name || "صاحب سيارة"}</Text>
-                <Text style={styles.largeOfferPrice}>{Number(offer.proposed_price).toLocaleString("en")} د.ع</Text>
+                <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: 10 }}>
+                  <View style={{ width: 42, height: 42, borderRadius: 21, overflow: "hidden", backgroundColor: palette.surfaceSoft, alignItems: "center", justifyContent: "center" }}>
+                    {offer.profile?.avatar_url ? (
+                      <Image source={{ uri: offer.profile.avatar_url }} style={{ width: "100%", height: "100%" }} />
+                    ) : (
+                      <Text style={styles.largeOfferName}>{(offer.profile?.full_name || "ص")[0]}</Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.largeOfferName}>{offer.profile?.full_name || "صاحب سيارة"}</Text>
+                    <Text style={styles.largeOfferPrice}>{Number(offer.proposed_price).toLocaleString("en")} د.ع</Text>
+                  </View>
+                </View>
                 {!!offer.offer_message && <Text style={styles.largeOfferMessage}>{offer.offer_message}</Text>}
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <TouchableOpacity
@@ -2154,8 +2165,19 @@ export default function RequestDetail() {
               <Text style={styles.largeOffersEmpty}>بانتظار الفنيين يرسلون أجورهم المقترحة...</Text>
             ) : serviceOffers.map((offer) => (
               <View key={offer.id} style={styles.largeOfferItem}>
-                <Text style={styles.largeOfferName}>{offer.profile?.full_name || "فني ممنون"}</Text>
-                <Text style={styles.largeOfferPrice}>{Number(offer.proposed_price).toLocaleString("en")} د.ع</Text>
+                <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: 10 }}>
+                  <View style={{ width: 42, height: 42, borderRadius: 21, overflow: "hidden", backgroundColor: palette.surfaceSoft, alignItems: "center", justifyContent: "center" }}>
+                    {offer.profile?.avatar_url ? (
+                      <Image source={{ uri: offer.profile.avatar_url }} style={{ width: "100%", height: "100%" }} />
+                    ) : (
+                      <Text style={styles.largeOfferName}>{(offer.profile?.full_name || "ف")[0]}</Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.largeOfferName}>{offer.profile?.full_name || "فني ممنون"}</Text>
+                    <Text style={styles.largeOfferPrice}>{Number(offer.proposed_price).toLocaleString("en")} د.ع</Text>
+                  </View>
+                </View>
                 {!!offer.offer_message && <Text style={styles.largeOfferMessage}>{offer.offer_message}</Text>}
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <TouchableOpacity style={[styles.largeOfferAccept, { flex: 1, backgroundColor: palette.muted }]} disabled={!!acceptingLargeOffer} onPress={() => rejectWorkerServiceOffer(offer.id)}>
