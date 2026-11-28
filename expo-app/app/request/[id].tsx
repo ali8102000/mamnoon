@@ -244,6 +244,7 @@ export default function RequestDetail() {
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [largeOffers, setLargeOffers] = useState<any[]>([]);
+  const [serviceOffers, setServiceOffers] = useState<any[]>([]);
   const [myLargeOffer, setMyLargeOffer] = useState<any>(null);
   const [largeOfferPrice, setLargeOfferPrice] = useState("");
   const [largeOfferMessage, setLargeOfferMessage] = useState("");
@@ -585,6 +586,25 @@ export default function RequestDetail() {
     } else {
       setLargeOffers([]);
       setMyLargeOffer(null);
+    }
+    if (data?.type === "service" && data.customer_id === user?.id && data.pricing_mode === "negotiable" && ["pending", "searching"].includes(data.status)) {
+      const { data: bids } = await (supabase as any)
+        .from("request_offers")
+        .select("id, provider_id, proposed_price, offer_message, sent_at")
+        .eq("request_id", id)
+        .eq("provider_role", "worker")
+        .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString())
+        .not("proposed_price", "is", null)
+        .order("sent_at", { ascending: false });
+      const providerIds: string[] = [...new Set<string>((bids ?? []).map((bid: any) => String(bid.provider_id)))];
+      const { data: profiles } = providerIds.length
+        ? await supabase.from("profiles").select("id, full_name, phone, avatar_url").in("id", providerIds)
+        : { data: [] };
+      const byId = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+      setServiceOffers((bids ?? []).map((bid: any) => ({ ...bid, profile: byId.get(bid.provider_id) ?? null })));
+    } else {
+      setServiceOffers([]);
     }
     setLoading(false);
   }, [id, user?.id, roles]);
@@ -1384,6 +1404,29 @@ export default function RequestDetail() {
     await loadRequest();
   }
 
+  async function acceptWorkerServiceOffer(offerId: string) {
+    setAcceptingLargeOffer(offerId);
+    const { error } = await (supabase as any).rpc("accept_worker_service_offer", { _offer_id: offerId });
+    setAcceptingLargeOffer(null);
+    if (error) {
+      Alert.alert("تعذر قبول عرض الفني", error.message);
+      return;
+    }
+    Alert.alert("تم الاتفاق", "تم قبول أجرة الفني وفتح المحادثة بينكم.");
+    await Promise.all([loadRequest(), loadChat()]);
+  }
+
+  async function rejectWorkerServiceOffer(offerId: string) {
+    setAcceptingLargeOffer(offerId);
+    const { error } = await (supabase as any).rpc("reject_worker_service_offer", { _offer_id: offerId });
+    setAcceptingLargeOffer(null);
+    if (error) {
+      Alert.alert("تعذر رفض العرض", error.message);
+      return;
+    }
+    await loadRequest();
+  }
+
   async function markProviderArrived() {
     if (!request || !isProvider || request.status !== "accepted" || transitionBusy) return;
     setTransitionBusy(true);
@@ -2055,6 +2098,28 @@ export default function RequestDetail() {
             >
               <Text style={styles.largeOfferAcceptText}>{retryingLargeOffers ? "جارٍ إعادة الإرسال..." : "إعادة إرسال الطلب لأصحاب السيارات"}</Text>
             </TouchableOpacity>
+          </View>
+        )}
+        {request.type === "service" && request.pricing_mode === "negotiable" && isCustomer && ["pending", "searching"].includes(request.status) && (
+          <View style={styles.largeOffersCard}>
+            <Text style={styles.largeOffersTitle}>عروض أجور الفنيين</Text>
+            {serviceOffers.length === 0 ? (
+              <Text style={styles.largeOffersEmpty}>بانتظار الفنيين يرسلون أجورهم المقترحة...</Text>
+            ) : serviceOffers.map((offer) => (
+              <View key={offer.id} style={styles.largeOfferItem}>
+                <Text style={styles.largeOfferName}>{offer.profile?.full_name || "فني ممنون"}</Text>
+                <Text style={styles.largeOfferPrice}>{Number(offer.proposed_price).toLocaleString("en")} د.ع</Text>
+                {!!offer.offer_message && <Text style={styles.largeOfferMessage}>{offer.offer_message}</Text>}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <TouchableOpacity style={[styles.largeOfferAccept, { flex: 1, backgroundColor: palette.muted }]} disabled={!!acceptingLargeOffer} onPress={() => rejectWorkerServiceOffer(offer.id)}>
+                    <Text style={styles.largeOfferAcceptText}>رفض العرض</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.largeOfferAccept, { flex: 1 }]} disabled={!!acceptingLargeOffer} onPress={() => acceptWorkerServiceOffer(offer.id)}>
+                    <Text style={styles.largeOfferAcceptText}>{acceptingLargeOffer === offer.id ? "جارٍ التنفيذ..." : "الموافقة"}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
           </View>
         )}
         {request.vehicle_category === "large" && !isCustomer && roles.includes("large_driver") && ["pending", "searching"].includes(request.status) && (
