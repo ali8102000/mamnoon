@@ -2218,18 +2218,11 @@ export default function RequestDetail() {
               <Text style={styles.largeOffersEmpty}>عرضك الحالي: {Number(myLargeOffer.proposed_price).toLocaleString("en")} د.ع — تگدر تعدله وترسله من جديد.</Text>
             ) : null}
             <Text style={{ color: palette.ink, fontSize: 12, fontWeight: "900", textAlign: "right", marginTop: 5 }}>أجرتك المقترحة (دينار عراقي)</Text>
-            <TextInput
-              style={styles.largeOfferInput}
-              value={largeOfferPrice}
-              onChangeText={(value) => setLargeOfferPrice(normalizeCashDigits(value))}
-              placeholder="مثال: 25000"
-              placeholderTextColor="#94a3b8"
-              keyboardType="number-pad"
-              editable={!largeOfferBusy && !acceptingLargeRequest}
-            />
-            <Text style={{ color: palette.muted, fontSize: 10, textAlign: "right", marginTop: 5 }}>
-              من 250 إلى 50,000 دينار، ويكون من مضاعفات 250.
-            </Text>
+            <Text style={{ color: palette.brand, fontSize: 23, fontWeight: "900", textAlign: "center", marginTop: 6 }}>{Number(largeOfferPrice || 0).toLocaleString("en")} د.ع</Text>
+            <TouchableOpacity onPress={() => setLargeOfferPrice(String(Math.min(500000, Number(largeOfferPrice || 0) + 5000)))} disabled={largeOfferBusy || acceptingLargeRequest || Number(largeOfferPrice) >= 500000} style={{ marginTop: 9, borderRadius: 12, paddingVertical: 12, alignItems: "center", backgroundColor: palette.gold, opacity: largeOfferBusy || acceptingLargeRequest || Number(largeOfferPrice) >= 500000 ? 0.5 : 1 }}>
+              <Text style={{ color: palette.brandDeep, fontWeight: "900", fontSize: 15 }}>＋ زيادة 5,000 دينار</Text>
+            </TouchableOpacity>
+            <Text style={{ color: palette.muted, fontSize: 10, textAlign: "right", marginTop: 5 }}>كل ضغطة تزيد الأجرة 5,000 دينار. الحد الأعلى 500,000.</Text>
             <Text style={{ color: palette.ink, fontSize: 12, fontWeight: "900", textAlign: "right", marginTop: 12 }}>ملاحظة للزبون (اختياري)</Text>
             <TextInput
               style={[styles.largeOfferInput, { minHeight: 76, textAlignVertical: "top" }]}
