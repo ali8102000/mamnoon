@@ -151,7 +151,7 @@ begin
     or public.admin_has_permission('promotions.manage','global',null)
   ) then raise exception 'missing_promotions_manage_permission'; end if;
 
-  if p_category_key not in ('taxi','large_vehicle','technician') then
+  if coalesce(p_category_key,'') not in ('taxi','large_vehicle','technician') then
     raise exception 'invalid_coupon_category';
   end if;
 
@@ -378,7 +378,7 @@ begin
   from public.coupons c
   join public.coupon_assignments a on a.coupon_id=c.id
   left join public.profiles p on p.id=a.user_id
-  where c.issued_to_user_id is not null
+  where c.issued_to_user_id is not null and a.user_id=c.issued_to_user_id
     and (p_template_id is null or c.source_coupon_id=p_template_id)
   order by a.assigned_at desc
   limit 500;
