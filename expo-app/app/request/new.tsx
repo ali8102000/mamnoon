@@ -2285,7 +2285,7 @@ export default function NewRequest() {
             <>
               <Text style={styles.label}>{pricingMode === "hourly" ? "الأجر لكل ساعة لكل فني" : "الأجر لكل فني بالدينار"}</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginBottom: 8 }}>
-                {[15000, 25000, 30000, 50000].map((amount) => (
+                {LARGE_VEHICLE_CUSTOMER_BUDGETS.map((amount) => (
                   <TouchableOpacity key={amount} onPress={() => setCustomerPrice(String(amount))} style={{ paddingHorizontal: 13, paddingVertical: 10, borderRadius: 12, backgroundColor: customerPrice === String(amount) ? palette.brand : palette.surface, borderWidth: 1, borderColor: customerPrice === String(amount) ? palette.gold : palette.line }}>
                     <Text style={{ color: customerPrice === String(amount) ? palette.white : palette.ink, fontSize: 12, fontWeight: "900" }}>{(amount / 1000).toLocaleString("ar-IQ")} ألف</Text>
                   </TouchableOpacity>
