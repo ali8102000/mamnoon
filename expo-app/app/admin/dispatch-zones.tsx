@@ -92,6 +92,30 @@ export default function AdminDispatchZonesScreen() {
     ));
   };
 
+  const applyPattern = (row: Row, pattern: "repeat" | "ascending") => {
+    setRows((current) => current.map((item) => {
+      if (item.dispatch_type !== row.dispatch_type) return item;
+      if (pattern === "repeat") return {
+        ...item,
+        ring4_min_km: item.ring1_min_km, ring4_max_km: item.ring1_max_km,
+        ring5_min_km: item.ring2_min_km, ring5_max_km: item.ring2_max_km,
+        ring6_min_km: item.ring3_min_km, ring6_max_km: item.ring3_max_km,
+        inherited: false,
+      };
+      const maxima = [item.ring1_max_km,item.ring2_max_km,item.ring3_max_km,item.ring4_max_km,item.ring5_max_km,item.ring6_max_km].map(Number).sort((a,b) => a-b);
+      return {
+        ...item,
+        ring1_min_km: 0, ring1_max_km: maxima[0],
+        ring2_min_km: maxima[0], ring2_max_km: maxima[1],
+        ring3_min_km: maxima[1], ring3_max_km: maxima[2],
+        ring4_min_km: maxima[2], ring4_max_km: maxima[3],
+        ring5_min_km: maxima[3], ring5_max_km: maxima[4],
+        ring6_min_km: maxima[4], ring6_max_km: maxima[5],
+        inherited: false,
+      };
+    }));
+  };
+
   const save = async (row: Row) => {
     const mins = [row.ring1_min_km,row.ring2_min_km,row.ring3_min_km,row.ring4_min_km,row.ring5_min_km,row.ring6_min_km].map(Number);
     const maxs = [row.ring1_max_km,row.ring2_max_km,row.ring3_max_km,row.ring4_max_km,row.ring5_max_km,row.ring6_max_km].map(Number);
@@ -164,6 +188,11 @@ export default function AdminDispatchZonesScreen() {
           <View style={styles.headingRow}>
             <Text style={styles.cardTitle}>{LABELS[row.dispatch_type]}</Text>
             {row.inherited && <Text style={styles.inherited}>يرث الإعداد الأقرب</Text>}
+          </View>
+          <Text style={styles.label}>اختيار نمط جاهز (وتگدر تعدّل كل نطاق بعده)</Text>
+          <View style={styles.chips}>
+            <TouchableOpacity onPress={() => applyPattern(row, "repeat")} style={styles.chip}><Text style={styles.chipText}>تكرار أول 3 بالنطاقات 4–6</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => applyPattern(row, "ascending")} style={styles.chip}><Text style={styles.chipText}>ترتيب تصاعدي</Text></TouchableOpacity>
           </View>
           {([1,2,3,4,5,6] as const).map((index) => (
             <View key={index} style={styles.rangeBox}>
