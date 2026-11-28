@@ -1888,7 +1888,7 @@ export default function RequestDetail() {
         {(!acceptedMapMode || trackingSheetExpanded) && (
         <ScrollView
           ref={scrollRef}
-          style={[styles.requestScroll, acceptedMapMode && styles.requestScrollOnMap]}
+          style={[styles.requestScroll, (acceptedMapMode || (searchingMapMode && request.type === "taxi" && request.vehicle_category === "large")) && styles.requestScrollOnMap, searchingMapMode && request.type === "taxi" && request.vehicle_category === "large" && styles.largeSearchScroll]}
           contentContainerStyle={styles.requestScrollContent}
           showsVerticalScrollIndicator
           keyboardShouldPersistTaps="handled"
@@ -1939,7 +1939,7 @@ export default function RequestDetail() {
             </View>
           </View>
         )}
-        <View style={[styles.infoCard, request.type === "taxi" && isActive && styles.taxiInfoCard]}>
+        {!(searchingMapMode && request.type === "taxi" && request.vehicle_category === "large") && <View style={[styles.infoCard, request.type === "taxi" && isActive && styles.taxiInfoCard]}>
           {request.type === "service" && request.services?.slug && SERVICE_IMAGES[request.services.slug] ? (
             <Image source={SERVICE_IMAGES[request.services.slug]} style={styles.serviceIllustration} resizeMode="cover" />
           ) : null}
@@ -1971,7 +1971,7 @@ export default function RequestDetail() {
           {request.type === "service" && request.pricing_mode === "negotiable" && request.customer_price == null && (
             <Text style={styles.infoPrice}>الأجر قابل للتفاوض</Text>
           )}
-        </View>
+        </View>}
         {isProvider && request.type === "service" && request.status === "searching" && (
           <View style={{ marginTop: 12, borderRadius: 16, padding: 13, backgroundColor: "#E8F7EF", borderWidth: 1, borderColor: palette.success }}>
             <Text style={{ color: palette.ink, fontWeight: "900", textAlign: "right" }}>تم تسجيلك ضمن فريق الطلب</Text>
@@ -1979,14 +1979,14 @@ export default function RequestDetail() {
           </View>
         )}
         {isCustomer && ["pending", "searching"].includes(request.status) && (
-          <View style={{ marginTop: 14, borderRadius: 22, padding: 18, backgroundColor: palette.brandSoft, borderWidth: 1, borderColor: palette.brand + "35", alignItems: "center", gap: 8 }}>
-            {request.type === "taxi" ? <Text style={{ fontSize: 28 }}>🚕</Text> : request.services?.slug && SERVICE_IMAGES[request.services.slug] ? <Image source={SERVICE_IMAGES[request.services.slug]} style={{ width: 76, height: 76, borderRadius: 18 }} resizeMode="cover" /> : <Text style={{ fontSize: 28 }}>🛠️</Text>}
+          <View style={searchingMapMode && request.type === "taxi" && request.vehicle_category === "large" ? styles.largeSearchCard : { marginTop: 14, borderRadius: 22, padding: 18, backgroundColor: palette.brandSoft, borderWidth: 1, borderColor: palette.brand + "35", alignItems: "center", gap: 8 }}>
+            {searchingMapMode && request.type === "taxi" && request.vehicle_category === "large" ? <View style={styles.largeSearchTopRow}><View style={styles.largeSearchLensWrap}><AnimatedSearchLens /></View><View style={styles.largeSearchDetails}><Text style={styles.largeSearchDetailsTitle}>طلب سيارة كبيرة — {request.vehicle_type === "kia_passenger" ? "كيا ركاب" : "كيا حمل"}</Text>{!!request.pickup_text && <Text style={styles.largeSearchDetailsText} numberOfLines={2}>من: {request.pickup_text}</Text>}{!!request.notes && <Text style={styles.largeSearchDetailsText} numberOfLines={2}>ملاحظات: {request.notes}</Text>}{(request.customer_price ?? request.price_estimate) != null && <Text style={styles.largeSearchDetailsPrice}>{Number(request.customer_price ?? request.price_estimate).toLocaleString("en")} د.ع</Text>}<Text style={styles.largeSearchDetailsStatus}>البحث عن أقرب سيارة كبيرة</Text><Text style={styles.largeSearchDetailsHint}>ستظهر عروض الأسعار عند وصولها</Text></View></View> : <>{request.type === "taxi" ? <Text style={{ fontSize: 28 }}>🚕</Text> : request.services?.slug && SERVICE_IMAGES[request.services.slug] ? <Image source={SERVICE_IMAGES[request.services.slug]} style={{ width: 76, height: 76, borderRadius: 18 }} resizeMode="cover" /> : <Text style={{ fontSize: 28 }}>🛠️</Text>}
             {request.type === "service" && request.services?.name_ar && <Text style={{ color: palette.ink, fontSize: 14, fontWeight: "900" }}>{request.services.name_ar}</Text>}
             <Text style={{ color: palette.ink, fontSize: 18, fontWeight: "900" }}>طلبك وصل إلى ممنون</Text>
             <Text style={{ color: palette.muted, fontSize: 12, textAlign: "center", lineHeight: 20 }}>
               {request.vehicle_category === "large" ? "نبحث عن أصحاب السيارات المناسبة، وستظهر لك عروض الأسعار عند وصولها." : request.type === "service" ? "نستقبل موافقات الفنيين إلى أن يكتمل العدد المطلوب أو تختار الاكتفاء بالفريق المتوفر." : "نبحث عن أقرب سائق أو فني متاح ومؤهل. أول شخص يقبل الطلب يحصل عليه."}
             </Text>
-            <AnimatedSearchLens />
+            {!(searchingMapMode && request.type === "taxi" && request.vehicle_category === "large") && <AnimatedSearchLens />}
             <Text style={{ color: palette.ink, fontSize: 19, fontWeight: "900", textAlign: "center" }}>
               {request.type === "taxi" && request.vehicle_category === "large" ? "البحث عن أقرب سيارة كبيرة" : request.type === "service" ? (EXPERT_SEARCH_SLUGS.has(request.services?.slug || "") ? "البحث عن أقرب خبير" : "البحث عن أقرب فني") : "البحث عن أقرب سائق"}
             </Text>
@@ -2060,6 +2060,7 @@ export default function RequestDetail() {
                 )}
               </View>
             )}
+            </>}
           </View>
         )}
         {isCustomer && request.status === "cancelled" && request.payment_method === "zaincash" && (
@@ -2606,6 +2607,16 @@ const styles = StyleSheet.create({
   fullScreenTrackingMap: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
   headerOnMap: { backgroundColor: "rgba(255,255,255,0.94)", borderBottomColor: "rgba(15,23,42,0.10)", elevation: 4 },
   requestScrollOnMap: { position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: "38%", backgroundColor: "rgba(255,255,255,0.96)", borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden", elevation: 8 },
+  largeSearchScroll: { maxHeight: "25%", backgroundColor: "rgba(232,240,255,0.97)" },
+  largeSearchCard: { width: "100%", paddingHorizontal: 12, paddingTop: 7, paddingBottom: 8, backgroundColor: "#E8F0FF", borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: "#C9D8F5", gap: 5 },
+  largeSearchTopRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 112 },
+  largeSearchLensWrap: { width: 112, height: 112, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  largeSearchDetails: { flex: 1, alignItems: "flex-end", justifyContent: "center", gap: 3 },
+  largeSearchDetailsTitle: { color: palette.ink, fontSize: 13, fontWeight: "900", textAlign: "right" },
+  largeSearchDetailsText: { color: palette.muted, fontSize: 10, textAlign: "right" },
+  largeSearchDetailsPrice: { color: palette.brand, fontSize: 15, fontWeight: "900", textAlign: "right" },
+  largeSearchDetailsStatus: { color: palette.ink, fontSize: 11, fontWeight: "900", textAlign: "right" },
+  largeSearchDetailsHint: { color: palette.muted, fontSize: 9, textAlign: "right" },
   collapsedTrackingSheet: { position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 70, backgroundColor: "rgba(255,255,255,0.98)", borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10, elevation: 12, shadowColor: "#000", shadowOpacity: 0.14, shadowRadius: 8, shadowOffset: { width: 0, height: -3 } },
   collapsedSheetTouch: { gap: 8 },
   collapsedSheetRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
