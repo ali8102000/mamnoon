@@ -149,10 +149,13 @@ export default function AdminFinanceScreen() {
       active: true, expires_at: null }, "تم حفظ قالب الكوبون. عند التوزيع ينشئ ممنون رمزاً مستقلاً لكل حساب.");
     setCode(""); setValue("");
   };
-  const distribute = (coupon: Coupon) => Alert.alert("توزيع كوبونات شخصية", "راح ينشئ النظام رمزاً مختلفاً لكل زبون مؤهل، والرمز ما يشتغل إلا بحسابه.", [
-    { text: "إلغاء", style: "cancel" },
-    { text: "توزيع على الفئة المحددة", onPress: () => void run({ action: "distribute_coupon", coupon_id: coupon.id, target }, "تم إنشاء رموز شخصية وإرسالها للحسابات المؤهلة.") },
-  ]);
+  const distribute = (coupon: Coupon) => {
+    if (target==="single" && !selected) { Alert.alert("حدد الزبون","ابحث عن حساب الزبون وحدده أولاً."); return; }
+    Alert.alert("توزيع كوبونات شخصية", "راح ينشئ النظام رمزاً مختلفاً لكل زبون مؤهل، والرمز ما يشتغل إلا بحسابه.", [
+      { text: "إلغاء", style: "cancel" },
+      { text: "توزيع على الفئة المحددة", onPress: () => void run({ action: "distribute_coupon", coupon_id: coupon.id, target, single_user_id: target==="single"?selected?.id:undefined }, "تم إنشاء رموز شخصية وإرسالها للحسابات المؤهلة.") },
+    ]);
+  };
 
   if (authLoading || loading) return <View style={s.center}><ActivityIndicator color={palette.brand} /><Text style={s.muted}>جاري تحميل الإدارة المالية...</Text></View>;
   if (allowed === false) return <View style={s.center}><Text style={s.title}>غير مصرّح</Text><Text style={s.muted}>هذه الصفحة للمدير والمالية فقط.</Text></View>;
@@ -225,7 +228,15 @@ export default function AdminFinanceScreen() {
         </View>}
         <View style={s.card}>
           <Text style={s.cardTitle}>الفئة المستهدفة بالتوزيع</Text>
-          <View style={s.row}>{([["customers","كل الزبائن"],["customers_1","طلب واحد"],["customers_2","طلبان"],["customers_3","3 طلبات"],["customers_4","4 طلبات"],["customers_5","5+ طلبات"]] as const).map(([k,label])=><TouchableOpacity key={k} onPress={()=>setTarget(k)} style={[s.choice,target===k&&s.active]}><Text style={[s.tabText,target===k&&s.activeText]}>{label}</Text></TouchableOpacity>)}</View>
+          <View style={s.row}>{([["customers","كل الزبائن"],["customers_1","طلب واحد"],["customers_2","طلبان"],["customers_3","3 طلبات"],["customers_4","4 طلبات"],["customers_5","5+ طلبات"],["single","مستخدم محدد"]] as const).map(([k,label])=><TouchableOpacity key={k} onPress={()=>setTarget(k)} style={[s.choice,target===k&&s.active]}><Text style={[s.tabText,target===k&&s.activeText]}>{label}</Text></TouchableOpacity>)}</View>
+          {target==="single"&&<View style={{gap:8}}>
+            <TextInput value={query} onChangeText={setQuery} placeholder="اسم الزبون أو رقم هاتفه" placeholderTextColor={palette.muted} style={s.input} textAlign="right"/>
+            <Action label={busy?"جارٍ البحث...":"بحث عن زبون"} disabled={busy} onPress={()=>void searchUsers()}/>
+            {users.map(u=><TouchableOpacity key={u.id} onPress={()=>setSelected(u)} style={[s.choice,selected?.id===u.id&&s.active]}>
+              <Text style={[s.tabText,selected?.id===u.id&&s.activeText]}>{u.full_name||"زبون"} · {u.phone||u.email||u.id}</Text>
+            </TouchableOpacity>)}
+            {!!selected&&<Text style={s.muted}>الزبون المحدد: {selected.full_name||selected.phone}</Text>}
+          </View>}
         </View>
         {coupons.map(c=><View key={c.id} style={s.card}>
           <Text style={s.cardTitle}>{c.code}</Text><Text style={s.muted}>الفئة: {c.category_key==="large_vehicle"?"السيارات الكبيرة":c.category_key==="technician"?"الفنيون":"التكسي"} · {c.type==="percentage"?c.value+"%":Number(c.value).toLocaleString("ar-IQ")+" د.ع"} · الموزع {c.used_count ?? 0} من {c.max_uses}</Text>
