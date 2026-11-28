@@ -57,19 +57,19 @@ const QUICK_REPLIES_CUSTOMER = ["وصلت!", "كم دقيقة؟", "أين أنت
 const EXPERT_SEARCH_SLUGS = new Set(["build", "plaster", "carpentry_form", "flooring", "chef", "plumbing", "electric_setup", "electric_street"]);
 function AnimatedSearchLens() {
   const rotation = useSharedValue(0);
-  const pulse = useSharedValue(0.88);
+  const pulse = useSharedValue(0.92);
   useEffect(() => {
-    rotation.value = withRepeat(withTiming(360, { duration: 2600, easing: Easing.linear }), -1, false);
-    pulse.value = withRepeat(withTiming(1.12, { duration: 900, easing: Easing.inOut(Easing.ease) }), -1, true);
+    rotation.value = withRepeat(withTiming(360, { duration: 2800, easing: Easing.linear }), -1, false);
+    pulse.value = withRepeat(withTiming(1.08, { duration: 1100, easing: Easing.inOut(Easing.ease) }), -1, true);
   }, [rotation, pulse]);
   const sweepStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.value}deg` }] }));
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
-  return <View style={{ width: 172, height: 172, alignItems: "center", justifyContent: "center", marginVertical: 8 }}>
-    <Animated.View style={[{ position: "absolute", width: 154, height: 154, borderRadius: 77, borderWidth: 2, borderColor: "#7566D8", backgroundColor: "#7566D81A" }, pulseStyle]} />
-    <View style={{ position: "absolute", width: 112, height: 112, borderRadius: 56, borderWidth: 1, borderColor: "#A69BEA", backgroundColor: "#7566D826" }} />
-    <Animated.View style={[{ position: "absolute", width: 112, height: 112, alignItems: "center" }, sweepStyle]}><View style={{ width: 3, height: 54, borderRadius: 2, backgroundColor: "#7566D8" }} /></Animated.View>
-    <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: "#FFFFFF", borderWidth: 5, borderColor: "#7566D8", alignItems: "center", justifyContent: "center", elevation: 5 }}><Text style={{ fontSize: 32 }}>⌕</Text></View>
-    <View style={{ position: "absolute", right: 20, bottom: 20, width: 16, height: 16, borderRadius: 8, backgroundColor: "#20A879", borderWidth: 3, borderColor: "#FFFFFF" }} />
+  return <View style={{ width: 88, height: 88, alignItems: "center", justifyContent: "center" }}>
+    <Animated.View style={[{ position: "absolute", width: 82, height: 82, borderRadius: 41, borderWidth: 1.5, borderColor: "#8B7CF6", backgroundColor: "#8B7CF615" }, pulseStyle]} />
+    <View style={{ position: "absolute", width: 62, height: 62, borderRadius: 31, borderWidth: 1, borderColor: "#B8B0F5", backgroundColor: "#8B7CF620" }} />
+    <Animated.View style={[{ position: "absolute", width: 62, height: 62, alignItems: "center" }, sweepStyle]}><View style={{ width: 2, height: 30, borderRadius: 2, backgroundColor: "#7566D8" }} /></Animated.View>
+    <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: "#FFFFFF", borderWidth: 3, borderColor: "#7566D8", alignItems: "center", justifyContent: "center", elevation: 4 }}><Text style={{ fontSize: 23, color: "#5142B8" }}>⌕</Text></View>
+    <View style={{ position: "absolute", right: 8, bottom: 8, width: 12, height: 12, borderRadius: 6, backgroundColor: "#20A879", borderWidth: 2, borderColor: "#FFFFFF" }} />
   </View>;
 }
 function normalizeCashDigits(value: string) {
@@ -2017,20 +2017,41 @@ export default function RequestDetail() {
           </View>
         )}
         {isCustomer && ["pending", "searching"].includes(request.status) && (
-          <View style={searchingMapMode && request.type === "taxi" && request.vehicle_category === "large" ? styles.largeSearchCard : { marginTop: 14, borderRadius: 22, padding: 18, backgroundColor: palette.brandSoft, borderWidth: 1, borderColor: palette.brand + "35", alignItems: "center", gap: 8 }}>
-            {searchingMapMode && request.type === "taxi" && request.vehicle_category === "large" ? <View style={styles.largeSearchTopRow}><View style={styles.largeSearchLensWrap}><AnimatedSearchLens /></View><View style={styles.largeSearchDetails}><Text style={styles.largeSearchDetailsTitle}>طلب سيارة كبيرة — {request.vehicle_type === "kia_passenger" ? "كيا ركاب" : "كيا حمل"}</Text>{!!request.pickup_text && <Text style={styles.largeSearchDetailsText} numberOfLines={2}>من: {request.pickup_text}</Text>}{!!request.notes && <Text style={styles.largeSearchDetailsText} numberOfLines={2}>ملاحظات: {request.notes}</Text>}{(request.customer_price ?? request.price_estimate) != null && <Text style={styles.largeSearchDetailsPrice}>{Number(request.customer_price ?? request.price_estimate).toLocaleString("en")} د.ع</Text>}<Text style={styles.largeSearchDetailsStatus}>البحث عن أقرب سيارة كبيرة</Text><Text style={styles.largeSearchDetailsHint}>ستظهر عروض الأسعار عند وصولها</Text></View></View> : <>{request.type === "taxi" ? <Text style={{ fontSize: 28 }}>🚕</Text> : request.services?.slug && SERVICE_IMAGES[request.services.slug] ? <Image source={SERVICE_IMAGES[request.services.slug]} style={{ width: 76, height: 76, borderRadius: 18 }} resizeMode="cover" /> : <Text style={{ fontSize: 28 }}>🛠️</Text>}
-            {request.type === "service" && request.services?.name_ar && <Text style={{ color: palette.ink, fontSize: 14, fontWeight: "900" }}>{request.services.name_ar}</Text>}
-            <Text style={{ color: palette.ink, fontSize: 18, fontWeight: "900" }}>طلبك وصل إلى ممنون</Text>
-            <Text style={{ color: palette.muted, fontSize: 12, textAlign: "center", lineHeight: 20 }}>
-              {request.vehicle_category === "large" ? "نبحث عن أصحاب السيارات المناسبة، وستظهر لك عروض الأسعار عند وصولها." : request.type === "service" ? "نستقبل موافقات الفنيين إلى أن يكتمل العدد المطلوب أو تختار الاكتفاء بالفريق المتوفر." : "نبحث عن أقرب سائق أو فني متاح ومؤهل. أول شخص يقبل الطلب يحصل عليه."}
-            </Text>
-            {!(searchingMapMode && request.type === "taxi" && request.vehicle_category === "large") && <AnimatedSearchLens />}
-            <Text style={{ color: palette.ink, fontSize: 19, fontWeight: "900", textAlign: "center" }}>
-              {request.type === "taxi" && request.vehicle_category === "large" ? "البحث عن أقرب سيارة كبيرة" : request.type === "service" ? (EXPERT_SEARCH_SLUGS.has(request.services?.slug || "") ? "البحث عن أقرب خبير" : "البحث عن أقرب فني") : "البحث عن أقرب سائق"}
-            </Text>
-            <Text style={{ color: palette.muted, fontSize: 12, textAlign: "center", lineHeight: 21 }}>يجري فحص المناطق القريبة بالتتابع للوصول إلى مقدم الخدمة المناسب حسب موقعك وطلبك</Text>
-            {request.type === "service" && <Text style={{ color: palette.brand, fontSize: 13, fontWeight: "900", textAlign: "center" }}>الفريق المؤكد: {acceptedPeopleCount} من {request.workers_count ?? 1} · المتبقي: {remainingPeopleCount}</Text>}
-            <Text style={{ color: palette.muted, fontSize: 11, textAlign: "center" }}>{request.vehicle_category === "large" ? "ستظهر لك عروض أصحاب السيارات الكبيرة عند وصولها." : request.type === "service" ? "نستقبل عروض الفنيين أو الخبراء المؤهلين حسب اختصاص الخدمة." : "نبحث عن أقرب سائق متاح ومؤهل."}</Text>
+          <View style={{ width: "100%", marginTop: 12, paddingHorizontal: 16, paddingTop: 15, paddingBottom: 14, borderRadius: 24, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E5EAF3", shadowColor: "#172554", shadowOpacity: 0.09, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4, gap: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 88, height: 88, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "#F4F2FF" }}>
+                <AnimatedSearchLens />
+              </View>
+              <View style={{ flex: 1, minWidth: 0, alignItems: "flex-end", gap: 5 }}>
+                <View style={{ alignSelf: "flex-end", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: "#EAF8F1" }}>
+                  <Text style={{ color: "#16865B", fontSize: 10, fontWeight: "900" }}>بحث مباشر</Text>
+                </View>
+                <Text style={{ color: "#172033", fontSize: 17, fontWeight: "900", textAlign: "right" }}>
+                  {request.type === "taxi" ? (request.vehicle_category === "large" ? (request.vehicle_type === "kia_passenger" ? "سيارة كبيرة · كيا ركاب" : "سيارة كبيرة · كيا حمل") : "نبحث عن أقرب سائق") : (EXPERT_SEARCH_SLUGS.has(request.services?.slug || "") ? "نبحث عن أقرب خبير" : "نبحث عن أقرب فني")}
+                </Text>
+                <Text style={{ color: "#697386", fontSize: 11, textAlign: "right", lineHeight: 17 }} numberOfLines={2}>
+                  {request.type === "service" ? (request.services?.name_ar || "الخدمة المطلوبة") : request.vehicle_category === "large" ? "نستقبل عروض أصحاب السيارات المناسبة" : "نفحص المناطق القريبة للعثور على سائق متاح"}
+                </Text>
+              </View>
+            </View>
+            <View style={{ height: 1, backgroundColor: "#EEF1F6" }} />
+            <View style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <View style={{ flex: 1, minWidth: 0, alignItems: "flex-end", gap: 3 }}>
+                <Text style={{ color: "#8791A2", fontSize: 10, fontWeight: "700" }}>موقع الانطلاق</Text>
+                <Text style={{ color: "#263247", fontSize: 11, fontWeight: "700", textAlign: "right" }} numberOfLines={2}>{request.pickup_text || "الموقع المحدد على الخريطة"}</Text>
+              </View>
+              {(request.customer_price ?? request.price_estimate) != null && (
+                <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: "#F2F5FF", alignItems: "center" }}>
+                  <Text style={{ color: "#8791A2", fontSize: 9 }}>السعر</Text>
+                  <Text style={{ color: "#3157B7", fontSize: 14, fontWeight: "900" }}>{Number(request.customer_price ?? request.price_estimate).toLocaleString("en")} د.ع</Text>
+                </View>
+              )}
+            </View>
+            {request.type === "service" && (
+              <View style={{ padding: 9, borderRadius: 12, backgroundColor: "#F6F7FB" }}>
+                <Text style={{ color: "#4F5B70", fontSize: 11, fontWeight: "800", textAlign: "center" }}>الفريق المؤكد: {acceptedPeopleCount} من {request.workers_count ?? 1} · المتبقي: {remainingPeopleCount}</Text>
+              </View>
+            )}
             {request.type === "service" && acceptedPeopleCount > 0 && !(request as any).staffing_search_paused_at && (
               <TouchableOpacity
                 onPress={async () => {
