@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ممنون",
+    "name": "ممنون زبون",
     "slug": "kfw",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -21,7 +21,9 @@
         "NSLocationWhenInUseUsageDescription": "نحتاج موقعك لعرض الخدمات القريبة وتتبع الرحلات",
         "NSCameraUsageDescription": "نحتاج الكاميرا لالتقاط صور الملف الشخصي",
         "NSPhotoLibraryUsageDescription": "نحتاج معرض الصور لاختيار صورة الملف الشخصي",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
