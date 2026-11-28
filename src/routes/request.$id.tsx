@@ -537,6 +537,11 @@ function RequestDetail() {
 
   async function applyRequestUrgency(multiplier: 2 | 3) {
     if (!req || myRole !== "customer" || urgencyBusy) return;
+    if (!["pending", "searching"].includes(req.status) || req.provider_id) {
+      await loadAll();
+      toast.error("تغيّرت حالة الطلب ولم يعد قيد البحث، لذلك لا يمكن رفع السعر الآن.");
+      return;
+    }
     setUrgencyBusy(true);
     try {
       const { data, error } = await (supabase as any).rpc("apply_request_urgency", { _request_id: id, _multiplier: multiplier });
@@ -545,7 +550,13 @@ function RequestDetail() {
       toast.success(`تم تفعيل الاستعجال ×${multiplier} وزيادة الأجر بنسبة ${Number(result?.urgency_percent ?? urgencyAdminPercent * multiplier)}٪`);
       await loadAll();
     } catch (error: any) {
-      toast.error(error?.message ?? "تعذر تفعيل وضع الاستعجال");
+      const message = String(error?.message ?? "");
+      if (message.includes("urgency_only_available_while_searching")) {
+        await loadAll();
+        toast.error("تغيّرت حالة الطلب ولم يعد قيد البحث، لذلك لم يتم رفع السعر. حدّثنا حالة الطلب.");
+      } else {
+        toast.error(message || "تعذر تفعيل وضع الاستعجال");
+      }
     } finally {
       setUrgencyBusy(false);
     }
