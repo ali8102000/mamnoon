@@ -1538,8 +1538,8 @@ function NewRequest() {
         {pricingMode !== "negotiable" && (
           <>
             <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-2.5 shadow-sm dark:border-amber-700 dark:bg-amber-950/30"><p className="mb-1.5 text-right text-[11px] font-black text-amber-800 dark:text-amber-200">حدد أجرة الفني بوضوح حتى يشوفها الزبون</p><input inputMode="numeric" value={customerPrice} onChange={(e) => setCustomerPrice(e.target.value.replace(/[^0-9]/g, ""))} placeholder={pricingMode === "hourly" ? "الأجر لكل ساعة ولكل فني" : "اكتب أجرة كل فني بالدينار"} className="w-full rounded-lg border border-amber-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-amber-300 dark:border-amber-700 dark:bg-black dark:text-slate-100" /></div>
-            <div className="flex flex-wrap gap-2">
-              {[15000, 25000, 30000, 50000].map((v) => (
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {LARGE_VEHICLE_CUSTOMER_BUDGETS.map((v) => (
                 <button
                   key={v}
                   type="button"
