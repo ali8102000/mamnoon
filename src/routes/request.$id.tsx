@@ -190,7 +190,10 @@ function RequestDetail() {
         setLoading(false);
         return;
       }
-      setReq(r);
+      const providerDisplayPrice = sessionUser?.id !== r.customer_id
+        ? Number(r.provider_arrived_at ? (r.customer_payable ?? r.customer_price ?? r.price_estimate ?? 0) : (r.customer_payable ?? r.customer_price ?? r.price_estimate ?? 0) + Number(r.coupon_discount ?? 0))
+        : null;
+      setReq(providerDisplayPrice === null ? r : { ...r, customer_payable: providerDisplayPrice, customer_price: providerDisplayPrice });
       // Show the accepted request immediately; secondary details hydrate below.
       setLoading(false);
       if (r.type === "service") {
