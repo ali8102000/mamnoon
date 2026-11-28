@@ -70,6 +70,7 @@ begin
     select c.*
     from public.coupons c
     where (select count(*) from public.coupon_assignments a where a.coupon_id=c.id) > 1
+      and c.active=true and (c.expires_at is null or c.expires_at>now())
     for update
   loop
     for v_assignment in
@@ -377,7 +378,7 @@ begin
   from public.coupons c
   join public.coupon_assignments a on a.coupon_id=c.id
   left join public.profiles p on p.id=a.user_id
-  where c.source_coupon_id is not null
+  where c.issued_to_user_id is not null
     and (p_template_id is null or c.source_coupon_id=p_template_id)
   order by a.assigned_at desc
   limit 500;
@@ -423,8 +424,9 @@ begin
   end if;
   update public.coupons set active=false,updated_at=now()
   where source_coupon_id=p_coupon_id and distribution_template=false;
-  delete from public.coupons where id=p_coupon_id and distribution_template=true;
-  perform public.log_admin_action('delete_coupon','coupon',p_coupon_id::text);
+  update public.coupons set active=false,updated_at=now()
+  where id=p_coupon_id and distribution_template=true;
+  perform public.log_admin_action('deactivate_coupon_template','coupon',p_coupon_id::text);
 end;
 $function$;
 revoke all on function public.admin_delete_coupon(uuid) from public,anon;
