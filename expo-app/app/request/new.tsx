@@ -39,6 +39,7 @@ const GOOGLE_MAPS_CONFIGURED = Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_K
 
 type Coordinates = { latitude: number; longitude: number };
 type VehicleCategory = "economy" | "premium" | "luxury" | "large";
+const LARGE_VEHICLE_CUSTOMER_BUDGETS = [15000, 25000, 35000, 50000, 60000, 75000, 100000, 125000, 150000] as const;
 
 type FavoritePlace = { id: string; label: string; address: string; latitude: number; longitude: number; governorate_key: string | null };
 type CatalogService = { id: string; slug: string; name_ar: string };
@@ -1185,8 +1186,8 @@ export default function NewRequest() {
     const proposedUnitPrice = customerPrice.trim() ? Number(customerPrice.replace(/[^0-9]/g, "")) : null;
     const servicePriceMultiplier = extraWorkers + 1 + (workerLevel === "khabir" ? 1 : 0);
     const proposedPrice = proposedUnitPrice === null ? null : (isTaxi ? proposedUnitPrice : proposedUnitPrice * servicePriceMultiplier);
-    if (isLargeVehicle && customerPrice.trim() && (proposedPrice === null || !Number.isSafeInteger(proposedPrice) || proposedPrice < 250 || proposedPrice > 50000 || proposedPrice % 250 !== 0)) {
-      Alert.alert("السعر غير صحيح", "السعر المقترح يجب أن يكون من 250 إلى 50000 دينار ومن مضاعفات 250.");
+    if (isLargeVehicle && customerPrice.trim() && (proposedPrice === null || !LARGE_VEHICLE_CUSTOMER_BUDGETS.includes(proposedPrice as typeof LARGE_VEHICLE_CUSTOMER_BUDGETS[number]))) {
+      Alert.alert("الميزانية غير صحيحة", "اختَر ميزانية من الاختصارات المتاحة فقط.");
       return;
     }
     if (!isTaxi && pricingMode !== "negotiable" && (proposedUnitPrice === null || !Number.isSafeInteger(proposedUnitPrice) || proposedUnitPrice < 250 || proposedUnitPrice % 250 !== 0)) {
@@ -1668,15 +1669,18 @@ export default function NewRequest() {
                 {isLargeVehicle && (
                   <View style={styles.taxiLargeTypePanel}>
                     {companyBranding.welcomeVisualUrl ? <ExpoImage source={{ uri: companyBranding.welcomeVisualUrl }} style={{ width: "100%", height: 72, marginBottom: 8 }} contentFit="contain" autoplay={companyBranding.welcomeVisualAnimated} /> : null}
-                    <Text style={styles.taxiFieldLabel}>السعر المقترح (اختياري)</Text>
+                    <Text style={styles.taxiFieldLabel}>ميزانية الزبون (اختياري)</Text>
                     <View style={styles.taxiBudgetRow}>
-                      {[15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000].map((amount) => (
-                        <TouchableOpacity key={amount} style={[styles.taxiBudgetChip, customerPrice === String(amount) && styles.taxiBudgetChipActive]} onPress={() => setCustomerPrice(String(amount))}>
+                      {LARGE_VEHICLE_CUSTOMER_BUDGETS.map((amount) => (
+                        <TouchableOpacity key={amount} style={[styles.taxiBudgetChip, customerPrice === String(amount) && styles.taxiBudgetChipActive]} onPress={() => setCustomerPrice(customerPrice === String(amount) ? "" : String(amount))}>
                           <Text style={[styles.taxiBudgetText, customerPrice === String(amount) && styles.taxiBudgetTextActive]}>{(amount / 1000).toLocaleString("en") + " ألف"}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
-                    <View style={styles.largeVehiclePriceHighlight}><Text style={styles.largeVehiclePriceLabel}>اكتب السعر المقترح حتى ينتبه له أصحاب السيارات</Text><TextInput style={styles.taxiSearchInputFull} value={customerPrice} onChangeText={(value) => setCustomerPrice(value.replace(/[^0-9]/g, ""))} placeholder="اكتب السعر بالدينار هنا" placeholderTextColor={palette.muted} keyboardType="numeric" /></View>
+                    <View style={styles.largeVehiclePriceHighlight}>
+                      <Text style={styles.largeVehiclePriceLabel}>{customerPrice ? "ميزانيتك المحددة" : "ما محددت ميزانية — توصلك عروض أصحاب السيارات"}</Text>
+                      {customerPrice ? <Text style={{ color: palette.brand, fontSize: 20, fontWeight: "900", textAlign: "center" }}>{Number(customerPrice).toLocaleString("ar-IQ")} د.ع</Text> : null}
+                    </View>
                     <Text style={styles.taxiHintText}>ماكو تسعير بالكيلومتر؛ أصحاب السيارات يرسلون عروضهم وتختار الأنسب.</Text>
                     <TouchableOpacity onPress={() => setUrgencyEnabled((value) => !value)} style={{ marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: urgencyEnabled ? palette.brand : palette.line, backgroundColor: urgencyEnabled ? palette.brandSoft : palette.surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                       <View style={{ flex: 1 }}>
