@@ -28,7 +28,8 @@ AS $$
    WHEN s.governorate_key=coalesce(nullif(lower(trim($3)),''),'all') AND s.category_key='all' THEN 2
    WHEN s.governorate_key='all' AND s.category_key=coalesce(nullif(lower(trim($4)),''),'all') THEN 3 ELSE 4 END
  LIMIT 1;
-$$;
+$;
+REVOKE ALL ON FUNCTION public.get_regional_dispatch_ring_duration(text,integer,text,text) FROM PUBLIC,anon,authenticated;
 
 DROP FUNCTION IF EXISTS public.admin_get_dispatch_zone_settings();
 CREATE FUNCTION public.admin_get_dispatch_zone_settings()
