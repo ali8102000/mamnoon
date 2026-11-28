@@ -396,18 +396,26 @@ Deno.serve(async (req: Request) => {
       await requirePermission("finance.read");
       await requirePermission("promotions.read");
       const [transactions, coupons] = await Promise.all([
-        admin.from("account_wallet_transactions").select("*, profiles!inner(full_name,phone)")
+        admin.from("account_wallet_transactions").select("*")
           .order("created_at", { ascending: false }).limit(200),
         admin.from("coupons").select("*").eq("distribution_template", true).order("created_at", { ascending: false }).limit(200),
       ]);
       if (transactions.error || coupons.error) return json({ error: "finance_data_load_failed" }, 500);
-      const walletTransactions = (transactions.data ?? []).map((row: any) => ({
+      const transactionRows = transactions.data ?? [];
+      const userIds = [...new Set(transactionRows.map((row: any) => row.user_id).filter(Boolean))];
+      const { data: profiles, error: profilesError } = userIds.length
+        ? await admin.from("profiles").select("id,full_name,phone").in("id", userIds)
+        : { data: [], error: null };
+      if (profilesError) return json({ error: "finance_profiles_load_failed" }, 500);
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+      const walletTransactions = transactionRows.map((row: any) => ({
         ...row,
         type: row.transaction_type,
         amount: row.amount_iqd,
         balance_after: row.balance_after_iqd,
         note: row.description,
         currency: "IQD",
+        profiles: profileMap.get(row.user_id) ?? null,
       }));
       return json({ transactions: walletTransactions, coupons: coupons.data ?? [] });
     }
@@ -416,17 +424,25 @@ Deno.serve(async (req: Request) => {
       await requireStrictPermission("finance.read");
       const limit = Number.isInteger(body.limit) ? Math.max(1, Math.min(200, body.limit)) : 100;
       const { data, error } = await admin.from("account_wallet_transactions")
-        .select("*, profiles!inner(full_name,phone)")
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(limit);
       if (error) return json({ error: "transactions_load_failed" }, 500);
-      const walletTransactions = (data ?? []).map((row: any) => ({
+      const transactionRows = data ?? [];
+      const userIds = [...new Set(transactionRows.map((row: any) => row.user_id).filter(Boolean))];
+      const { data: profiles, error: profilesError } = userIds.length
+        ? await admin.from("profiles").select("id,full_name,phone").in("id", userIds)
+        : { data: [], error: null };
+      if (profilesError) return json({ error: "transaction_profiles_load_failed" }, 500);
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+      const walletTransactions = transactionRows.map((row: any) => ({
         ...row,
         type: row.transaction_type,
         amount: row.amount_iqd,
         balance_after: row.balance_after_iqd,
         note: row.description,
         currency: "IQD",
+        profiles: profileMap.get(row.user_id) ?? null,
       }));
       return json({ transactions: walletTransactions });
     }
