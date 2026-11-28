@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { X, Loader2, AlertTriangle, Check } from "lucide-react";
 
 type Props = {
   role: "customer" | "provider";
   requestType: "taxi" | "service";
+  requestId: string;
   onClose: () => void;
   onSubmit: (reason: string) => Promise<void> | void;
 };
@@ -28,15 +30,33 @@ const PROVIDER_REASONS = [
   "سبب آخر",
 ];
 
-export function CancelReasonModal({ role, requestType, onClose, onSubmit }: Props) {
+export function CancelReasonModal({ role, requestType, requestId, onClose, onSubmit }: Props) {
   const reasons = role === "customer" ? CUSTOMER_REASONS : PROVIDER_REASONS;
   const [selected, setSelected] = useState<string>("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [penaltyPreview, setPenaltyPreview] = useState<any>(null);
+  const [penaltyLoading, setPenaltyLoading] = useState(false);
+  const [penaltyConfirmed, setPenaltyConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (role !== "provider" || !requestId) return;
+    let active = true;
+    setPenaltyLoading(true);
+    (supabase as any).rpc("get_provider_cancellation_penalty_preview", { _request_id: requestId })
+      .then(({ data, error }: any) => {
+        if (!active) return;
+        if (error) setPenaltyPreview({ error: true });
+        else setPenaltyPreview(data);
+      })
+      .finally(() => { if (active) setPenaltyLoading(false); });
+    return () => { active = false; };
+  }, [role, requestId]);
 
   const isOther = selected === "سبب آخر";
   const finalReason = isOther ? note.trim() : selected;
-  const disabled = busy || !finalReason || (isOther && note.trim().length < 2);
+  const needsPenaltyConfirmation = role === "provider" && Number(penaltyPreview?.penalty_amount_iqd ?? 0) > 0 && penaltyPreview?.enabled;
+  const disabled = busy || !finalReason || (isOther && note.trim().length < 2) || (role === "provider" && penaltyLoading) || (needsPenaltyConfirmation && !penaltyConfirmed) || (role === "provider" && penaltyPreview?.error);
 
   return (
     <div
@@ -71,6 +91,13 @@ export function CancelReasonModal({ role, requestType, onClose, onSubmit }: Prop
           </button>
         </div>
 
+        {role === "provider" && penaltyLoading && <div className="rounded-xl border border-border p-3 text-xs text-muted-foreground">جارٍ احتساب غرامة الإلغاء قبل التأكيد...</div>}
+        {role === "provider" && penaltyPreview?.error && <div role="alert" className="rounded-xl bg-red-50 text-red-700 p-3 text-xs">تعذر احتساب الغرامة. أغلق النافذة وحدّث الطلب ثم حاول مجدداً.</div>}
+        {role === "provider" && penaltyPreview?.enabled && Number(penaltyPreview?.penalty_amount_iqd ?? 0) > 0 && <label className="block rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+          <div className="text-sm font-black">غرامة الإلغاء: {Number(penaltyPreview.penalty_amount_iqd).toLocaleString("ar-IQ")} د.ع</div>
+          <div className="text-xs text-muted-foreground">النسبة المحتسبة {penaltyPreview.applied_percent}% — {penaltyPreview.stage === "half" ? "نصف الغرامة ضمن المدة المحددة" : "الغرامة كاملة بعد انتهاء المدة"}.</div>
+          <span className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={penaltyConfirmed} onChange={(e) => setPenaltyConfirmed(e.target.checked)} className="h-4 w-4" /> أوافق على الخصم وأؤكد إلغاء الطلب</span>
+        </label>}
         <div className="space-y-2 mb-3 max-h-[45vh] overflow-y-auto">
           {reasons.map((r, index) => {
             const active = selected === r;

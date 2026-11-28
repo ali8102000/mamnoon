@@ -1155,6 +1155,7 @@ function RequestDetail() {
         <CancelReasonModal
           role={myRole}
           requestType={req.type}
+          requestId={id}
           onClose={() => setShowCancel(false)}
           onSubmit={async (reason) => {
             try {

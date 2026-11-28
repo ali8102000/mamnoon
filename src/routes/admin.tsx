@@ -461,7 +461,7 @@ function AdminPage() {
           {section === "map" && <MapSection />}
           {section === "notifications" && <NotificationsSection />}
           {section === "regions" && <RegionalControlsSection />}
-          {section === "pricing" && <><AdminTaxiPricingControls /><AdminPeakWeatherControl /><AdminCategoryPeakPricing /><AdminRegionalPeakPricing /></>}
+          {section === "pricing" && <><AdminProviderCancellationPenalty /><AdminTaxiPricingControls /><AdminPeakWeatherControl /><AdminCategoryPeakPricing /><AdminRegionalPeakPricing /></>}
           {section === "driverTiers" && <DriverPerformanceTierSettings />}
           {section === "dispatchZones" && <AdminDispatchZones />}
           {section === "missions" && <AdminProviderMissions />}
@@ -3584,4 +3584,82 @@ function DriverPerformanceTierSettings() {
     {error && <div role="alert" className="rounded-xl bg-red-50 text-red-700 p-3 text-xs">{error}</div>}
     <p className="text-[11px] text-muted-foreground">كل تعديل يعيد احتساب رتبة جميع السائقين من سجلات الرحلات والتقييمات. لا يتم تعديل بيانات الرحلات أو التقييمات نفسها.</p>
   </div>;
+}
+
+
+function AdminProviderCancellationPenalty() {
+  const [enabled, setEnabled] = useState(false);
+  const [graceMinutes, setGraceMinutes] = useState("5");
+  const [penaltyPercent, setPenaltyPercent] = useState("10");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data, error: loadError } = await supabase
+        .from("provider_cancellation_penalty_settings")
+        .select("enabled,grace_minutes,penalty_percent")
+        .eq("id", true)
+        .maybeSingle();
+      if (!active) return;
+      if (loadError) setError("تعذر تحميل إعدادات غرامات الإلغاء.");
+      else if (data) {
+        setEnabled(Boolean(data.enabled));
+        setGraceMinutes(String(data.grace_minutes ?? 5));
+        setPenaltyPercent(String(data.penalty_percent ?? 10));
+      }
+      setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const save = async () => {
+    const minutes = Number(graceMinutes);
+    const percent = Number(penaltyPercent);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440 || !Number.isFinite(percent) || percent < 0 || percent > 100) {
+      setError("أدخل مدة من دقيقة إلى 1440 دقيقة ونسبة من 0 إلى 100.");
+      return;
+    }
+    setSaving(true); setError(""); setNotice("");
+    const { data, error: saveError } = await (supabase as any).rpc("admin_update_provider_cancellation_penalty_settings", {
+      p_enabled: enabled, p_grace_minutes: minutes, p_penalty_percent: percent,
+    });
+    if (saveError) setError(saveError.message || "تعذر حفظ الإعدادات.");
+    else {
+      setNotice("تم حفظ إعدادات غرامات إلغاء مقدم الخدمة.");
+      if (data) {
+        setEnabled(Boolean(data.enabled));
+        setGraceMinutes(String(data.grace_minutes));
+        setPenaltyPercent(String(data.penalty_percent));
+      }
+    }
+    setSaving(false);
+  };
+
+  return <section dir="rtl" className="glass rounded-2xl border border-border p-4 space-y-3">
+    <div><h2 className="font-black text-lg">غرامات إلغاء مقدم الخدمة</h2>
+      <p className="text-xs text-muted-foreground mt-1">تُطبق على الكابتن والأسطة والناقل فقط. إلغاء الزبون معفى دائماً.</p></div>
+    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>
+      <label className="flex items-center justify-between gap-3 rounded-xl border p-3">
+        <span className="text-sm font-bold">تفعيل الغرامات</span>
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-5 w-5 accent-primary" />
+      </label>
+      <label className="block text-xs font-bold">مدة النصف الأول (دقيقة)
+        <input type="number" min="1" max="1440" step="1" value={graceMinutes} onChange={(e) => setGraceMinutes(e.target.value)} className="mt-1 w-full rounded-xl border bg-background p-3" />
+      </label>
+      <label className="block text-xs font-bold">نسبة الغرامة الكاملة (%)
+        <input type="number" min="0" max="100" step="0.5" value={penaltyPercent} onChange={(e) => setPenaltyPercent(e.target.value)} className="mt-1 w-full rounded-xl border bg-background p-3" />
+      </label>
+      <div className="rounded-xl bg-muted p-3 text-xs leading-6">
+        خلال أول {graceMinutes || "—"} دقائق: نصف النسبة ({Number(penaltyPercent || 0) / 2}%).
+        <br />بعدها: النسبة كاملة ({penaltyPercent || "—"}%).
+      </div>
+      <button disabled={saving} onClick={() => void save()} className="w-full rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-50">{saving ? "جارٍ الحفظ..." : "حفظ إعدادات الغرامات"}</button>
+    </>}
+    {error && <div role="alert" className="rounded-xl bg-red-50 text-red-700 p-3 text-xs">{error}</div>}
+    {notice && <div role="status" className="rounded-xl bg-emerald-50 text-emerald-700 p-3 text-xs">{notice}</div>}
+  </section>;
 }
