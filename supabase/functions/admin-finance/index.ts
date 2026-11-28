@@ -442,7 +442,7 @@ Deno.serve(async (req: Request) => {
       if ((body.id !== undefined && !uuid(body.id)) ||
           typeof body.code !== "string" || body.code.trim().length < 2 || body.code.length > 50 ||
           !["percentage", "fixed"].includes(body.type) ||
-          typeof body.value !== "number" || !Number.isFinite(body.value) || body.value < 0 ||
+          typeof body.value !== "number" || !Number.isFinite(body.value) || body.value <= 0 ||
           !Number.isInteger(body.max_uses) || body.max_uses < 1 || body.max_uses > 10000000 ||
           typeof body.active !== "boolean" ||
           typeof body.min_amount !== "number" || !Number.isFinite(body.min_amount) || body.min_amount < 0 ||
