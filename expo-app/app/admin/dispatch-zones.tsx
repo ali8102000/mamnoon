@@ -14,6 +14,9 @@ type Row = {
   ring1_max_km: number;
   ring2_max_km: number;
   ring3_max_km: number;
+  ring1_duration_seconds: number;
+  ring2_duration_seconds: number;
+  ring3_duration_seconds: number;
   inherited?: boolean;
 };
 const TYPES: DispatchType[] = ["taxi", "large_driver", "technician"];
@@ -23,9 +26,9 @@ const LABELS: Record<DispatchType, string> = {
   technician: "الفنيون ومقدمو الخدمات",
 };
 const DEFAULTS: Record<DispatchType, Omit<Row, "governorate_key" | "category_key">> = {
-  taxi: { dispatch_type: "taxi", ring1_max_km: 1, ring2_max_km: 3, ring3_max_km: 5 },
-  large_driver: { dispatch_type: "large_driver", ring1_max_km: 5, ring2_max_km: 25, ring3_max_km: 55 },
-  technician: { dispatch_type: "technician", ring1_max_km: 5, ring2_max_km: 25, ring3_max_km: 55 },
+  taxi: { dispatch_type: "taxi", ring1_max_km: 1, ring2_max_km: 3, ring3_max_km: 5, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60 },
+  large_driver: { dispatch_type: "large_driver", ring1_max_km: 5, ring2_max_km: 25, ring3_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60 },
+  technician: { dispatch_type: "technician", ring1_max_km: 5, ring2_max_km: 25, ring3_max_km: 55, ring1_duration_seconds: 60, ring2_duration_seconds: 60, ring3_duration_seconds: 60 },
 };
 
 export default function AdminDispatchZonesScreen() {
@@ -71,7 +74,7 @@ export default function AdminDispatchZonesScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const update = (type: DispatchType, key: "ring1_max_km" | "ring2_max_km" | "ring3_max_km", value: string) => {
+  const update = (type: DispatchType, key: "ring1_max_km" | "ring2_max_km" | "ring3_max_km" | "ring1_duration_seconds" | "ring2_duration_seconds" | "ring3_duration_seconds", value: string) => {
     setRows((current) => current.map((row) =>
       row.dispatch_type === type ? { ...row, [key]: value === "" ? 0 : Number(value), inherited: false } : row
     ));
@@ -81,8 +84,11 @@ export default function AdminDispatchZonesScreen() {
     const first = Number(row.ring1_max_km);
     const second = Number(row.ring2_max_km);
     const third = Number(row.ring3_max_km);
-    if (!(first > 0 && second > first && third > second && third <= 55)) {
-      Alert.alert("مسافات غير صحيحة", "رتّب النطاقات تصاعدياً: الأول ثم الثاني ثم الثالث، والحد الأعلى 55 كم.");
+    const t1 = Number(row.ring1_duration_seconds);
+    const t2 = Number(row.ring2_duration_seconds);
+    const t3 = Number(row.ring3_duration_seconds);
+    if (!(first > 0 && second > first && third > second && third <= 55 && [t1,t2,t3].every((v) => Number.isInteger(v) && v >= 5 && v <= 3600))) {
+      Alert.alert("إعدادات غير صحيحة", "رتّب المسافات تصاعدياً، وحدد مدة كل نطاق بين 5 و3600 ثانية.");
       return;
     }
     setSaving(row.dispatch_type);
@@ -93,6 +99,9 @@ export default function AdminDispatchZonesScreen() {
       p_ring1_max_km: first,
       p_ring2_max_km: second,
       p_ring3_max_km: third,
+      p_ring1_duration_seconds: t1,
+      p_ring2_duration_seconds: t2,
+      p_ring3_duration_seconds: t3,
     });
     setSaving(null);
     if (error) {
@@ -107,7 +116,7 @@ export default function AdminDispatchZonesScreen() {
     <ScrollView style={styles.page} contentContainerStyle={styles.container}>
       <Stack.Screen options={{ title: "نطاقات توزيع الطلبات" }} />
       <Text style={styles.title}>التحكم بنطاقات توزيع الطلبات</Text>
-      <Text style={styles.note}>حدد المحافظة وفئة الخدمة، ثم غيّر مسافات الإرسال الأول والثاني والثالث. الحفظ مستقل لكل فئة، ويُنشئ تخصيصاً للمحافظة أو الفئة المختارة دون تغيير إعدادات بقية الفئات.</Text>
+      <Text style={styles.note}>حدد المحافظة وفئة الخدمة، ثم غيّر مسافة ومدة كل نطاق. لا ينتقل الطلب إلى النطاق التالي إلا بعد انتهاء الوقت المحدد فعلياً. الحفظ مستقل لكل فئة، ويُنشئ تخصيصاً للمحافظة أو الفئة المختارة دون تغيير إعدادات بقية الفئات.</Text>
 
       <View style={styles.card}>
         <Text style={styles.label}>المحافظة</Text>
@@ -158,6 +167,22 @@ export default function AdminDispatchZonesScreen() {
                 {index === 0 ? "من 0" : index === 1 ? "من " + row.ring1_max_km : "من " + row.ring2_max_km}
                 {" "}كم إلى القيمة المحددة
               </Text>
+            </View>
+          ))}
+          {([
+            { key: "ring1_duration_seconds", label: "وقت النطاق الأول" },
+            { key: "ring2_duration_seconds", label: "وقت النطاق الثاني" },
+            { key: "ring3_duration_seconds", label: "وقت النطاق الثالث" },
+          ] as const).map((field) => (
+            <View key={field.key}>
+              <Text style={styles.label}>{field.label} (ثانية)</Text>
+              <TextInput
+                value={String(row[field.key])}
+                onChangeText={(value) => update(row.dispatch_type, field.key, value)}
+                keyboardType="number-pad"
+                style={styles.input}
+              />
+              <Text style={styles.hint}>المدة الفعلية قبل انتقال الطلب إلى النطاق التالي — من 5 إلى 3600 ثانية</Text>
             </View>
           ))}
           <TouchableOpacity
