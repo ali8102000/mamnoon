@@ -605,6 +605,44 @@ export default function RequestDetail() {
     setLoading(false);
   }, [id, user?.id, roles]);
 
+  // Realtime is the fast path, but customer dispatch must recover if a
+  // channel drops an UPDATE. Poll only while this customer is still searching.
+  useEffect(() => {
+    if (!isCustomer || !request || !["pending", "searching"].includes(request.status)) return;
+    let active = true;
+    let busy = false;
+    const refreshAcceptedRequest = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const { data, error } = await (supabase as any)
+          .from("service_requests")
+          .select("id,status,provider_id,provider_role,provider_arrived_at")
+          .eq("id", id)
+          .maybeSingle();
+        if (!active || error || !data) return;
+        const changed = data.status !== request.status ||
+          data.provider_id !== request.provider_id ||
+          data.provider_role !== request.provider_role;
+        if (!changed) return;
+        setRequest((current) => current ? ({ ...current, ...data }) : current);
+        // Hydrate provider details, vehicle, accepted team and chat after the
+        // status change so the tracking screen is immediately usable.
+        void loadRequest();
+      } catch (error) {
+        console.warn("[request status recovery] refresh failed:", error);
+      } finally {
+        busy = false;
+      }
+    };
+    void refreshAcceptedRequest();
+    const timer = setInterval(() => { void refreshAcceptedRequest(); }, 2500);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [id, isCustomer, request?.status, request?.provider_id, request?.provider_role, loadRequest]);
+
   useEffect(() => {
     const otherId = request && ["accepted", "in_progress", "completed"].includes(request.status)
       ? request.customer_id === user?.id
