@@ -1079,13 +1079,6 @@ function RequestDetail() {
                   )}
                 </div>
               )}
-              {myRole === "customer" && ["pending", "searching"].includes(req.status as string) && (
-                <div className="mt-3 rounded-2xl border border-border bg-background/80 p-3 text-right">
-                  <div className="text-xs font-black">تأخر القبول؟ تگدر ترفع السعر حتى تشجع مزودين أكثر</div>
-                  <input type="number" min="250" max="50000" step="250" value={retryPriceIncrease} onChange={(e) => setRetryPriceIncrease(e.target.value)} placeholder="مقدار الزيادة بالدينار" className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-3 text-center font-black" />
-                  <button disabled={retryingRequest} onClick={() => void retryFailedDispatch()} className="mt-2 min-h-11 w-full rounded-xl bg-primary text-primary-foreground font-black disabled:opacity-50">{retryingRequest ? "جارٍ تحديث السعر..." : "رفع السعر وإعادة البحث"}</button>
-                </div>
-              )}
 
               {req.type === "service" && acceptedPeopleCount > 0 && !req.staffing_search_paused_at && (
                 <button
