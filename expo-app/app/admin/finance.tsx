@@ -145,12 +145,13 @@ export default function AdminFinanceScreen() {
       Alert.alert("تحقق من البيانات", "تأكد من رمز الكوبون والقيمة وعدد الاستخدامات."); return;
     }
     await run({ action: "save_coupon", code: code.trim().toUpperCase(), type: couponType, value: Number(value),
-      max_uses: Number(maxUses), min_amount: Number(minAmount), active: true, expires_at: null }, "تم حفظ الكوبون.");
+      max_uses: Number(maxUses), min_amount: Number(minAmount), category_key: categoryKey,
+      active: true, expires_at: null }, "تم حفظ قالب الكوبون. عند التوزيع ينشئ ممنون رمزاً مستقلاً لكل حساب.");
     setCode(""); setValue("");
   };
-  const distribute = (coupon: Coupon) => Alert.alert("توزيع الكوبون", "هذا الكوبون مخصص للزبائن فقط ويُستخدم لطلبات التكسي الاعتيادي.", [
+  const distribute = (coupon: Coupon) => Alert.alert("توزيع كوبونات شخصية", "راح ينشئ النظام رمزاً مختلفاً لكل زبون مؤهل، والرمز ما يشتغل إلا بحسابه.", [
     { text: "إلغاء", style: "cancel" },
-    { text: "توزيع على الزبائن", onPress: () => void run({ action: "distribute_coupon", coupon_id: coupon.id, target: "customers" }, "تم إرسال الكوبون للزبائن.") },
+    { text: "توزيع على الفئة المحددة", onPress: () => void run({ action: "distribute_coupon", coupon_id: coupon.id, target }, "تم إنشاء رموز شخصية وإرسالها للحسابات المؤهلة.") },
   ]);
 
   if (authLoading || loading) return <View style={s.center}><ActivityIndicator color={palette.brand} /><Text style={s.muted}>جاري تحميل الإدارة المالية...</Text></View>;
