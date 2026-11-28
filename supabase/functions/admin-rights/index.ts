@@ -5,6 +5,8 @@ const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 const uuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
+let diagnosticStage = "request_start";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -21,8 +23,10 @@ Deno.serve(async (req: Request) => {
       global: { fetch: createSupabaseFetch(publishable), headers: { Authorization: "Bearer " + token } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    diagnosticStage = "auth_validation";
     const { data: auth, error: authError } = await caller.auth.getUser(token);
     if (authError || !auth.user) return json({ error: "unauthorized" }, 401);
+    diagnosticStage = "permission_check";
     const { data: isAdmin } = await caller.rpc("has_admin_access", { p_user_id: auth.user.id });
     const { data: isSuperAdmin } = await caller.rpc("is_super_admin", { p_user_id: auth.user.id });
     const { data: canAdjust } = await caller.rpc("admin_has_permission", {
@@ -38,27 +42,76 @@ Deno.serve(async (req: Request) => {
     if (!body || typeof body.action !== "string") return json({ error: "invalid_request" }, 400);
 
     if (body.action === "search_users") {
-      const query = typeof body.query === "string" ? body.query.trim().slice(0, 100) : "";
-      if (query.length < 2) return json({ error: "query_too_short" }, 400);
-      const safe = query.replace(/[,%()]/g, " ");
-      const { data: profiles, error } = await admin.from("profiles")
-        .select("id,full_name,phone,email,governorate_key,created_at")
-        .or(`full_name.ilike.%${safe}%,phone.ilike.%${safe}%,email.ilike.%${safe}%`)
-        .order("created_at", { ascending: false }).limit(40);
-      if (error) return json({ error: "user_search_failed" }, 500);
-      const ids = (profiles ?? []).map((p: any) => p.id);
-      const [{ data: roles }, { data: partners }, { data: wallets }] = await Promise.all([
-        ids.length ? admin.from("user_roles").select("user_id,role").in("user_id", ids) : Promise.resolve({ data: [] }),
-        ids.length ? admin.from("partner_business_profiles").select("user_id,partner_type,business_vertical,business_name").in("user_id", ids) : Promise.resolve({ data: [] }),
-        ids.length ? admin.from("account_wallets").select("user_id,balance_iqd").in("user_id", ids) : Promise.resolve({ data: [] }),
+      const rawQuery = typeof body.query === "string" ? body.query.trim().slice(0, 100) : "";
+      if (rawQuery.length < 2) return json({ error: "query_too_short" }, 400);
+
+      // Search names/emails independently from phone variants. This avoids
+      // PostgREST OR-filter parsing issues and supports Iraqi phone formats.
+      const normalizedDigits = rawQuery.replace(/[٠-٩۰-۹]/g, (digit) => {
+        const code = digit.charCodeAt(0);
+        return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+      }).replace(/\D/g, "");
+      const phoneCandidates = new Set<string>();
+      if (normalizedDigits) {
+        phoneCandidates.add(normalizedDigits);
+        if (normalizedDigits.startsWith("00")) phoneCandidates.add(normalizedDigits.slice(2));
+        if (normalizedDigits.startsWith("964")) {
+          phoneCandidates.add("+" + normalizedDigits);
+          phoneCandidates.add("0" + normalizedDigits.slice(3));
+          phoneCandidates.add(normalizedDigits.slice(3));
+        } else if (normalizedDigits.startsWith("0")) {
+          phoneCandidates.add("964" + normalizedDigits.slice(1));
+          phoneCandidates.add("+964" + normalizedDigits.slice(1));
+          phoneCandidates.add(normalizedDigits.slice(1));
+        } else if (normalizedDigits.startsWith("7")) {
+          phoneCandidates.add("0" + normalizedDigits);
+          phoneCandidates.add("964" + normalizedDigits);
+          phoneCandidates.add("+964" + normalizedDigits);
+        }
+      }
+
+      const safeText = rawQuery.replace(/[,%()]/g, " ").replace(/[*]/g, "").trim();
+      const [nameResult, emailResult, phoneResult] = await Promise.all([
+        admin.from("profiles").select("id,full_name,phone,email,governorate_key,created_at")
+          .ilike("full_name", "%" + safeText + "%").order("created_at", { ascending: false }).limit(40),
+        admin.from("profiles").select("id,full_name,phone,email,governorate_key,created_at")
+          .ilike("email", "%" + safeText + "%").order("created_at", { ascending: false }).limit(40),
+        phoneCandidates.size
+          ? admin.from("profiles").select("id,full_name,phone,email,governorate_key,created_at")
+              .or([...phoneCandidates].map((phone) => "phone.ilike.%" + phone.replace(/[,%()]/g, "") + "%").join(","))
+              .order("created_at", { ascending: false }).limit(40)
+          : Promise.resolve({ data: [], error: null }),
       ]);
-      const rolesMap = new Map<string,string[]>();
-      for (const r of roles ?? []) rolesMap.set(r.user_id,[...(rolesMap.get(r.user_id) ?? []),String(r.role)]);
-      const partnerMap = new Map((partners ?? []).map((p:any)=>[p.user_id,p]));
-      const walletMap = new Map((wallets ?? []).map((w:any)=>[w.user_id,Number(w.balance_iqd)]));
-      return json({ users: (profiles ?? []).map((p:any)=>({
-        ...p, roles:rolesMap.get(p.id) ?? [], partner:partnerMap.get(p.id) ?? null,
-        balance_iqd:walletMap.get(p.id) ?? 0,
+      const failedSearch = [nameResult, emailResult, phoneResult].find((result: any) => result.error);
+      if (failedSearch?.error) {
+        console.error("[admin-rights] user search failed", failedSearch.error.message);
+        return json({ error: "user_search_failed" }, 500);
+      }
+      const profileMap = new Map<string, any>();
+      for (const profile of [...(nameResult.data ?? []), ...(emailResult.data ?? []), ...(phoneResult.data ?? [])]) {
+        profileMap.set(profile.id, profile);
+      }
+      const profiles = [...profileMap.values()]
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+        .slice(0, 40);
+      const ids = profiles.map((profile: any) => profile.id);
+      const [rolesResult, partnersResult, walletsResult] = await Promise.all([
+        ids.length ? admin.from("user_roles").select("user_id,role").in("user_id", ids) : Promise.resolve({ data: [], error: null }),
+        ids.length ? admin.from("partner_business_profiles").select("user_id,partner_type,business_vertical,business_name").in("user_id", ids) : Promise.resolve({ data: [], error: null }),
+        ids.length ? admin.from("account_wallets").select("user_id,balance_iqd").in("user_id", ids) : Promise.resolve({ data: [], error: null }),
+      ]);
+      const enrichmentError = [rolesResult, partnersResult, walletsResult].find((result: any) => result.error);
+      if (enrichmentError?.error) {
+        console.error("[admin-rights] user search enrichment failed", enrichmentError.error.message);
+        return json({ error: "user_search_details_failed" }, 500);
+      }
+      const rolesMap = new Map<string, string[]>();
+      for (const role of rolesResult.data ?? []) rolesMap.set(role.user_id, [...(rolesMap.get(role.user_id) ?? []), String(role.role)]);
+      const partnerMap = new Map((partnersResult.data ?? []).map((partner: any) => [partner.user_id, partner]));
+      const walletMap = new Map((walletsResult.data ?? []).map((wallet: any) => [wallet.user_id, Number(wallet.balance_iqd)]));
+      return json({ users: profiles.map((profile: any) => ({
+        ...profile, roles: rolesMap.get(profile.id) ?? [], partner: partnerMap.get(profile.id) ?? null,
+        balance_iqd: walletMap.get(profile.id) ?? 0,
       })) });
     }
 
@@ -102,6 +155,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (body.action === "list") {
+      diagnosticStage = "list_query_batch";
       if (isSuperAdmin !== true) return json({ error: "super_admin_required" }, 403);
       const [policies, overrides, revenue, collections, collectionReversals] = await Promise.all([
         admin.from("mamnoon_commission_policies").select("*").order("created_at", { ascending: false }).limit(100),
@@ -110,24 +164,31 @@ Deno.serve(async (req: Request) => {
         admin.from("mamnoon_revenue_collections").select("id,revenue_ledger_id,payment_id,amount_iqd,provider_reference,created_at").order("created_at", { ascending: false }).limit(300),
         admin.from("mamnoon_revenue_collection_reversals").select("revenue_collection_id,amount_iqd,reason,created_at").limit(500),
       ]);
-      if (policies.error || overrides.error || revenue.error || collections.error || collectionReversals.error) return json({ error: "rights_data_load_failed" }, 500);
+      if (policies.error || overrides.error || revenue.error || collections.error || collectionReversals.error) {
+        console.error("admin-rights list query failed", { policies: policies.error?.message ?? null, overrides: overrides.error?.message ?? null, revenue: revenue.error?.message ?? null, collections: collections.error?.message ?? null, reversals: collectionReversals.error?.message ?? null });
+        return json({ error: "rights_data_load_failed" }, 500);
+      }
       const ids = [...new Set((overrides.data ?? []).map((r:any)=>r.user_id).concat((revenue.data ?? []).map((r:any)=>r.user_id)))];
+      diagnosticStage = "list_profiles";
       const { data: profiles } = ids.length ? await admin.from("profiles").select("id,full_name,phone").in("id",ids) : { data: [] };
       const byId = new Map((profiles ?? []).map((p:any)=>[p.id,p]));
       const collectionPaymentIds = [...new Set((collections.data ?? []).map((row:any)=>row.payment_id).filter(Boolean))];
+      diagnosticStage = "list_collection_payments";
       const { data: collectionPayments, error: collectionPaymentsError } = collectionPaymentIds.length
         ? await admin.from("payment_transactions").select("id,purpose,provider,status").in("id",collectionPaymentIds)
         : { data: [], error: null };
-      if (collectionPaymentsError) return json({ error: "rights_collection_payment_load_failed" }, 500);
+      if (collectionPaymentsError) { console.error("admin-rights payment lookup failed", collectionPaymentsError.message); return json({ error: "rights_collection_payment_load_failed" }, 500); }
       const collectionPaymentById = new Map((collectionPayments ?? []).map((row:any)=>[row.id,row]));
       const requestIds = [...new Set((revenue.data ?? []).map((row:any)=>row.request_id).filter(Boolean))];
+      diagnosticStage = "list_service_requests";
       const { data: requests, error: requestsError } = requestIds.length
         ? await admin.from("service_requests").select("id,request_code").in("id",requestIds)
         : { data: [], error: null };
-      if (requestsError) return json({ error: "rights_request_codes_load_failed" }, 500);
+      if (requestsError) { console.error("admin-rights request lookup failed", requestsError.message); return json({ error: "rights_request_codes_load_failed" }, 500); }
       const requestCodeById = new Map((requests ?? []).map((row:any)=>[row.id,row.request_code]));
+      diagnosticStage = "list_revenue_summary";
       const { data: summary, error: summaryError } = await caller.rpc("admin_get_revenue_summary");
-      if (summaryError) return json({ error: "revenue_summary_load_failed" }, 500);
+      if (summaryError) { console.error("admin-rights revenue summary failed", summaryError.message); return json({ error: "revenue_summary_load_failed" }, 500); }
       return json({
         summary: summary ?? {},
         policies: policies.data ?? [],
@@ -168,7 +229,8 @@ Deno.serve(async (req: Request) => {
     }
 
     return json({ error: "unknown_action" }, 400);
-  } catch {
-    return json({ error: "internal_error" }, 500);
+  } catch (error) {
+    console.error("admin-rights unhandled failure", { stage: diagnosticStage, message: String(error).slice(0, 300) });
+    return json({ error: "internal_error", stage: diagnosticStage }, 500);
   }
 });
