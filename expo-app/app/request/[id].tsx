@@ -1208,7 +1208,7 @@ export default function RequestDetail() {
   }, [isCustomer, request?.type, request?.status, request?.pickup_lat, request?.pickup_lng, driverLocationFresh, otherLocation?.latitude, otherLocation?.longitude, otherLocation?.updatedAt]);
 
   async function payRequestWithZainCash() {
-    if (!user || !request || !isCustomer || paymentBusy || request.payment_method === "zaincash") return;
+    if (!user || !request || !isCustomer || paymentBusy || ["zaincash","customer_wallet"].includes(request.payment_method ?? "")) return;
     setPaymentBusy(true);
     try {
       const {data,error}=await supabase.functions.invoke("zaincash-create-payment",{body:{purpose:"service_request",requestId:id}});
@@ -2079,7 +2079,7 @@ export default function RequestDetail() {
             {activeOffer.distance_km != null && <Text style={{ color: palette.muted, fontSize: 11, marginTop: 4 }}>المسافة من موقعك: {Number(activeOffer.distance_km).toFixed(1)} كم</Text>}
           </View>
         )}
-        {isCustomer && ["accepted","in_progress","completed"].includes(request.status) && request.payment_method !== "zaincash" && Number(request.customer_payable ?? request.customer_price ?? request.price_estimate) > 0 && (
+        {isCustomer && ["accepted","in_progress","completed"].includes(request.status) && !["zaincash","customer_wallet"].includes(request.payment_method ?? "") && Number(request.customer_payable ?? request.customer_price ?? request.price_estimate) > 0 && (
           <View style={styles.paymentCompact}><View style={{ flex: 1 }}><Text style={styles.paymentCompactTitle}>الدفع الإلكتروني · زين كاش</Text><Text style={styles.paymentCompactHint}>{paymentGatewayEnabled ? "الدفع متاح" : "غير متاح حالياً"}</Text></View><TouchableOpacity onPress={payRequestWithZainCash} disabled={paymentBusy || !paymentGatewayEnabled} style={[styles.paymentCompactButton, (!paymentGatewayEnabled || paymentBusy) && { opacity: 0.5 }]}><Text style={styles.paymentCompactButtonText}>{paymentBusy ? "..." : "ادفع"}</Text></TouchableOpacity></View>
         )}
         {isCustomer && ["accepted","in_progress"].includes(request.status) && !["zaincash","customer_wallet"].includes(request.payment_method ?? "") && Number(request.customer_payable ?? request.customer_price ?? request.price_estimate) > 0 && (
