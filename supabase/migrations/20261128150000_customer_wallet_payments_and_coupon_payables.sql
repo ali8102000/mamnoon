@@ -428,3 +428,10 @@ begin
     'outstanding_after_iqd',v_outstanding-p_amount_iqd,'duplicate',false);
 end;
 $function$;
+
+-- Allow the internal customer wallet as a first-party payment source.
+alter table public.payment_transactions
+  drop constraint if exists payment_transactions_provider_check;
+alter table public.payment_transactions
+  add constraint payment_transactions_provider_check
+  check (provider in ('zaincash','customer_wallet'));
