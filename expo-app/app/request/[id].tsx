@@ -452,7 +452,7 @@ export default function RequestDetail() {
     const { data, error } = await (supabase as any)
       .from("service_requests")
       .select(
-        "id, provider_id, provider_role, customer_id, status, type, pickup_text, dest_text, price_estimate, customer_payable, payment_method, customer_price, pricing_mode, work_hours, work_description, workers_count, taxi_urgency_enabled, taxi_urgency_percent, services(name_ar, slug), pickup_lat, pickup_lng, dest_lat, dest_lng, vehicle_category, vehicle_type, notes, attachment_path, created_at, searching_started_at, provider_arrived_at, cancellation_reason, distance_km, urgency_base_price, urgency_multiplier, urgency_percent, urgency_amount, staffing_search_paused_at, cash_change_iqd",
+        "id, provider_id, provider_role, customer_id, status, type, pickup_text, dest_text, price_estimate, customer_payable, payment_method, customer_price, pricing_mode, work_hours, work_description, workers_count, taxi_urgency_enabled, taxi_urgency_percent, services(name_ar, slug), pickup_lat, pickup_lng, dest_lat, dest_lng, vehicle_category, vehicle_type, notes, attachment_path, created_at, searching_started_at, provider_arrived_at, cancellation_reason, distance_km, urgency_base_price, urgency_multiplier, urgency_percent, urgency_amount, staffing_search_paused_at, cash_change_iqd, coupon_discount",
       )
       .eq("id", id)
       .maybeSingle();
@@ -466,7 +466,10 @@ export default function RequestDetail() {
       const { data: codeRow } = await (supabase as any).from("service_requests").select("request_code").eq("id", id).maybeSingle();
       requestCode = (codeRow as any)?.request_code ?? null;
     }
-    setRequest(data ? ({ ...data, request_code: requestCode } as unknown as RequestRecord) : null);
+    const providerDisplayPrice = data && data.customer_id !== user?.id
+      ? Number(data.provider_arrived_at ? (data.customer_payable ?? data.customer_price ?? data.price_estimate ?? 0) : (data.customer_payable ?? data.customer_price ?? data.price_estimate ?? 0) + Number(data.coupon_discount ?? 0))
+      : null;
+    setRequest(data ? ({ ...data, ...(providerDisplayPrice === null ? {} : { customer_payable: providerDisplayPrice, customer_price: providerDisplayPrice }), request_code: requestCode } as unknown as RequestRecord) : null);
     // Render the core request before optional offers, attachments and payment status finish loading.
     setLoading(false);
     if (data?.type === "service") {
@@ -1205,7 +1208,7 @@ export default function RequestDetail() {
   }, [isCustomer, request?.type, request?.status, request?.pickup_lat, request?.pickup_lng, driverLocationFresh, otherLocation?.latitude, otherLocation?.longitude, otherLocation?.updatedAt]);
 
   async function payRequestWithZainCash() {
-    if (!user || !request || !isCustomer || paymentBusy || request.payment_method === "zaincash") return;
+    if (!user || !request || !isCustomer || paymentBusy || ["zaincash","customer_wallet"].includes(request.payment_method ?? "")) return;
     setPaymentBusy(true);
     try {
       const {data,error}=await supabase.functions.invoke("zaincash-create-payment",{body:{purpose:"service_request",requestId:id}});
@@ -1215,6 +1218,22 @@ export default function RequestDetail() {
     } catch(e:any) {
       Alert.alert("تعذر بدء الدفع",e?.message || "حاول مرة ثانية لاحقاً.");
     } finally { setPaymentBusy(false); }
+  }
+
+  async function payRequestFromWallet() {
+    if (!user || !request || !isCustomer || paymentBusy || request.payment_method === "customer_wallet") return;
+    setPaymentBusy(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("pay_service_request_from_customer_wallet", { _request_id: request.id });
+      if (error) throw error;
+      Alert.alert("تم الدفع", `تم خصم ${Number(data?.amount_iqd ?? 0).toLocaleString("ar-IQ")} د.ع من محفظتك الداخلية.`);
+      await loadRequest();
+    } catch (error: any) {
+      const raw = String(error?.message ?? "");
+      Alert.alert("تعذر الدفع", raw.includes("insufficient_wallet_balance") ? "رصيد محفظتك ما يكفي لإتمام الدفع." : raw || "حاول مرة ثانية.");
+    } finally {
+      setPaymentBusy(false);
+    }
   }
 
   async function sendMessage(text?: string) {
@@ -1476,7 +1495,7 @@ export default function RequestDetail() {
   function completeRide() {
     if (!request || !isProvider || request.status !== "in_progress" || transitionBusy) return;
     const fare = Number(request.customer_payable ?? request.customer_price ?? request.price_estimate ?? 0);
-    setCashReceivedInput(request.payment_method === "zaincash" ? "0" : String(Math.max(0, Math.round(fare))));
+    setCashReceivedInput(["zaincash","customer_wallet"].includes(request.payment_method ?? "") ? "0" : String(Math.max(0, Math.round(fare))));
     setCashSettlementOpen(true);
   }
 
@@ -1488,7 +1507,7 @@ export default function RequestDetail() {
       Alert.alert("المبلغ غير صحيح", "اكتب المبلغ النقدي الذي استلمته من الزبون.");
       return;
     }
-    if (request.payment_method === "zaincash" && amount !== 0) {
+    if (["zaincash","customer_wallet"].includes(request.payment_method ?? "") && amount !== 0) {
       Alert.alert("الدفع إلكتروني", "هذا الطلب مدفوع إلكترونياً؛ لا تدخل مبلغاً نقدياً.");
       return;
     }
@@ -2060,8 +2079,19 @@ export default function RequestDetail() {
             {activeOffer.distance_km != null && <Text style={{ color: palette.muted, fontSize: 11, marginTop: 4 }}>المسافة من موقعك: {Number(activeOffer.distance_km).toFixed(1)} كم</Text>}
           </View>
         )}
-        {isCustomer && ["accepted","in_progress","completed"].includes(request.status) && request.payment_method !== "zaincash" && Number(request.customer_payable ?? request.customer_price ?? request.price_estimate) > 0 && (
+        {isCustomer && ["accepted","in_progress","completed"].includes(request.status) && !["zaincash","customer_wallet"].includes(request.payment_method ?? "") && Number(request.customer_payable ?? request.customer_price ?? request.price_estimate) > 0 && (
           <View style={styles.paymentCompact}><View style={{ flex: 1 }}><Text style={styles.paymentCompactTitle}>الدفع الإلكتروني · زين كاش</Text><Text style={styles.paymentCompactHint}>{paymentGatewayEnabled ? "الدفع متاح" : "غير متاح حالياً"}</Text></View><TouchableOpacity onPress={payRequestWithZainCash} disabled={paymentBusy || !paymentGatewayEnabled} style={[styles.paymentCompactButton, (!paymentGatewayEnabled || paymentBusy) && { opacity: 0.5 }]}><Text style={styles.paymentCompactButtonText}>{paymentBusy ? "..." : "ادفع"}</Text></TouchableOpacity></View>
+        )}
+        {isCustomer && ["accepted","in_progress"].includes(request.status) && !["zaincash","customer_wallet"].includes(request.payment_method ?? "") && Number(request.customer_payable ?? request.customer_price ?? request.price_estimate) > 0 && (
+          <View style={[styles.paymentCompact, { marginTop: 10 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.paymentCompactTitle}>الدفع من المحفظة الداخلية</Text>
+              <Text style={styles.paymentCompactHint}>يُخصم المبلغ بعد خصم الكوبون إن وُجد</Text>
+            </View>
+            <TouchableOpacity onPress={payRequestFromWallet} disabled={paymentBusy} style={[styles.paymentCompactButton, paymentBusy && { opacity: 0.5 }]}>
+              <Text style={styles.paymentCompactButtonText}>{paymentBusy ? "..." : "ادفع من المحفظة"}</Text>
+            </TouchableOpacity>
+          </View>
         )}
         {request.vehicle_category === "large" && isCustomer && ["pending", "searching"].includes(request.status) && (
           <View style={styles.largeOffersCard}>

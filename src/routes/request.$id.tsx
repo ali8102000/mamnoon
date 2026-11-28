@@ -190,7 +190,10 @@ function RequestDetail() {
         setLoading(false);
         return;
       }
-      setReq(r);
+      const providerDisplayPrice = sessionUser?.id !== r.customer_id
+        ? Number(r.provider_arrived_at ? (r.customer_payable ?? r.customer_price ?? r.price_estimate ?? 0) : (r.customer_payable ?? r.customer_price ?? r.price_estimate ?? 0) + Number(r.coupon_discount ?? 0))
+        : null;
+      setReq(providerDisplayPrice === null ? r : { ...r, customer_payable: providerDisplayPrice, customer_price: providerDisplayPrice });
       // Show the accepted request immediately; secondary details hydrate below.
       setLoading(false);
       if (r.type === "service") {
@@ -428,7 +431,7 @@ function RequestDetail() {
   }
 
   async function payRequestWithZainCash() {
-    if (!session || myRole !== "customer" || paymentBusy || req.payment_method === "zaincash") return;
+    if (!session || myRole !== "customer" || paymentBusy || ["zaincash","customer_wallet"].includes(req.payment_method ?? "")) return;
     setPaymentBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke("zaincash-create-payment", {
@@ -446,10 +449,26 @@ function RequestDetail() {
     }
   }
 
+  async function payRequestFromWallet() {
+    if (!session || myRole !== "customer" || !req || paymentBusy || req.payment_method === "customer_wallet") return;
+    setPaymentBusy(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("pay_service_request_from_customer_wallet", { _request_id: req.id });
+      if (error) throw error;
+      toast.success(`تم الدفع من محفظتك بمبلغ ${Number(data?.amount_iqd ?? 0).toLocaleString("ar-IQ")} د.ع`);
+      await loadAll();
+    } catch (error: any) {
+      const raw = String(error?.message ?? "");
+      toast.error(raw.includes("insufficient_wallet_balance") ? "رصيد محفظتك ما يكفي لإتمام الدفع" : raw || "تعذر الدفع من المحفظة");
+    } finally {
+      setPaymentBusy(false);
+    }
+  }
+
   function markCompleted() {
     if (!req || myRole !== "provider" || req.status !== "in_progress") return;
     const fare = Number(req.customer_payable ?? req.customer_price ?? req.price_estimate ?? 0);
-    setCashReceivedInput(req.payment_method === "zaincash" ? "0" : String(Math.max(0, Math.round(fare))));
+    setCashReceivedInput(["zaincash","customer_wallet"].includes(req.payment_method ?? "") ? "0" : String(Math.max(0, Math.round(fare))));
     setCashSettlementOpen(true);
   }
 
@@ -461,7 +480,7 @@ function RequestDetail() {
       toast.error("اكتب المبلغ النقدي المستلم بشكل صحيح");
       return;
     }
-    if (req.payment_method === "zaincash" && amount !== 0) {
+    if (["zaincash","customer_wallet"].includes(req.payment_method ?? "") && amount !== 0) {
       toast.error("هذا الطلب مدفوع إلكترونياً؛ لا تدخل مبلغاً نقدياً");
       return;
     }
@@ -602,11 +621,19 @@ function RequestDetail() {
       </div>
 
       <div className="px-5 py-4 space-y-3">
-        {myRole === "customer" && ["accepted","in_progress","completed"].includes(req.status) && req.payment_method !== "zaincash" && Number(req.customer_payable ?? req.customer_price ?? req.price_estimate) > 0 && (
+        {myRole === "customer" && ["accepted","in_progress","completed"].includes(req.status) && !["zaincash","customer_wallet"].includes(req.payment_method ?? "") && Number(req.customer_payable ?? req.customer_price ?? req.price_estimate) > 0 && (
           <div className="glass rounded-xl px-3 py-2 flex items-center justify-between gap-2">
             <div className="min-w-0"><div className="text-xs font-black">الدفع الإلكتروني · زين كاش</div><div className="text-[10px] text-muted-foreground">{paymentGatewayEnabled ? "الدفع متاح" : "غير متاح حالياً"}</div></div>
             <Button type="button" size="sm" onClick={() => void payRequestWithZainCash()} disabled={paymentBusy || !paymentGatewayEnabled} className="h-9 shrink-0">
               {paymentBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "ادفع الآن"}
+            </Button>
+          </div>
+        )}
+        {myRole === "customer" && ["accepted","in_progress"].includes(req.status) && !["zaincash","customer_wallet"].includes(req.payment_method ?? "") && Number(req.customer_payable ?? req.customer_price ?? req.price_estimate) > 0 && (
+          <div className="glass rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+            <div className="min-w-0"><div className="text-xs font-black">الدفع من المحفظة الداخلية</div><div className="text-[10px] text-muted-foreground">يُخصم المبلغ بعد خصم الكوبون إن وُجد</div></div>
+            <Button type="button" size="sm" onClick={() => void payRequestFromWallet()} disabled={paymentBusy} className="h-9 shrink-0">
+              {paymentBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "ادفع من المحفظة"}
             </Button>
           </div>
         )}
