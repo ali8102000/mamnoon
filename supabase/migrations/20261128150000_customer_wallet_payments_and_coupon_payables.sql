@@ -272,3 +272,159 @@ $function$;
 
 revoke all on function public.admin_get_provider_payables_summary(uuid) from public,anon,authenticated;
 grant execute on function public.admin_get_provider_payables_summary(uuid) to authenticated;
+
+-- Make finance settlement validation use the exact same net-wallet + coupon-subsidy basis.
+create or replace function public.admin_get_provider_payables_summary(p_provider_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_actor uuid := auth.uid();
+  v_provider_governorate text;
+  v_scope_type text;
+  v_scope_governorate text;
+  v_gross bigint := 0;
+  v_commission bigint := 0;
+  v_coupon_subsidy bigint := 0;
+  v_payable bigint := 0;
+  v_settled bigint := 0;
+begin
+  if v_actor is null then raise exception 'unauthorized'; end if;
+  if p_provider_id is null then raise exception 'provider_required'; end if;
+  select governorate_key into v_provider_governorate from public.profiles where id=p_provider_id;
+  if not found then raise exception 'provider_not_found'; end if;
+  if not exists(select 1 from public.user_roles where user_id=p_provider_id and role::text in ('driver','worker','large_driver')) then
+    raise exception 'provider_account_required';
+  end if;
+  select scope_type,scope_governorate into v_scope_type,v_scope_governorate
+  from public.staff_assignments where user_id=v_actor and active=true order by created_at desc limit 1;
+  if v_scope_type='governorate' and v_scope_governorate is distinct from v_provider_governorate then
+    raise exception 'provider_outside_finance_scope';
+  end if;
+  if not (public.has_admin_access(v_actor) or public.admin_has_permission('finance.read',
+    case when v_provider_governorate is null then 'global' else 'governorate' end,v_provider_governorate)) then
+    raise exception 'missing_finance_read_permission';
+  end if;
+
+  select coalesce(sum(p.cash_iqd),0)::bigint,
+         coalesce(sum(least(p.cash_iqd+coalesce(c.subsidy_iqd,0),greatest(0,round(coalesce(p.commission,0)))::bigint)),0)::bigint
+  into v_gross,v_commission
+  from (
+    select sr.id,sr.commission,sum(pt.amount)::bigint cash_iqd
+    from public.service_requests sr
+    join public.payment_transactions pt on pt.request_id=sr.id
+      and pt.purpose='service_request' and pt.status='paid'
+      and pt.provider in ('zaincash','customer_wallet') and pt.currency='IQD'
+      and pt.user_id=sr.customer_id
+    where sr.provider_id=p_provider_id and sr.status='completed'
+      and sr.payment_method in ('zaincash','customer_wallet')
+    group by sr.id,sr.commission
+  ) p
+  left join (
+    select request_id,sum(discount_amount)::bigint subsidy_iqd
+    from public.coupon_subsidy_ledger
+    where provider_id=p_provider_id and status='payable'
+    group by request_id
+  ) c on c.request_id=p.id;
+
+  select coalesce(sum(discount_amount),0)::bigint into v_coupon_subsidy
+  from public.coupon_subsidy_ledger where provider_id=p_provider_id and status='payable';
+  v_payable := greatest(0,v_gross+v_coupon_subsidy-v_commission);
+  select coalesce(sum(amount_iqd),0)::bigint into v_settled
+  from public.mamnoon_provider_cash_settlements where provider_id=p_provider_id;
+  return jsonb_build_object(
+    'gross_paid_iqd',v_gross,'commission_iqd',v_commission,
+    'coupon_subsidy_iqd',v_coupon_subsidy,'payable_iqd',v_payable,
+    'settled_iqd',v_settled,'outstanding_iqd',greatest(0,v_payable-v_settled),
+    'over_settled_iqd',greatest(0,v_settled-v_payable)
+  );
+end;
+$function$;
+
+create or replace function public.admin_record_provider_cash_settlement(
+  p_provider_id uuid,p_amount_iqd bigint,p_note text,p_idempotency_key text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_actor uuid := auth.uid();
+  v_governorate text;
+  v_scope_type text;
+  v_scope_governorate text;
+  v_existing public.mamnoon_provider_cash_settlements%rowtype;
+  v_payable_total bigint := 0;
+  v_settled_total bigint := 0;
+  v_outstanding bigint := 0;
+  v_settlement_id uuid;
+begin
+  if v_actor is null then raise exception 'unauthorized'; end if;
+  if p_provider_id is null then raise exception 'provider_required'; end if;
+  if p_amount_iqd is null or p_amount_iqd<=0 or p_amount_iqd>1000000000 then raise exception 'invalid_settlement_amount'; end if;
+  if p_note is null or length(btrim(p_note)) not between 2 and 500 then raise exception 'settlement_note_required'; end if;
+  if p_idempotency_key is null or length(btrim(p_idempotency_key)) not between 8 and 200 then raise exception 'valid_idempotency_key_required'; end if;
+
+  select governorate_key into v_governorate from public.profiles where id=p_provider_id;
+  if not found then raise exception 'provider_not_found'; end if;
+  if not exists(select 1 from public.user_roles where user_id=p_provider_id and role::text in ('driver','worker','large_driver')) then
+    raise exception 'provider_account_required';
+  end if;
+  select scope_type,scope_governorate into v_scope_type,v_scope_governorate
+  from public.staff_assignments where user_id=v_actor and active=true order by created_at desc limit 1;
+  if v_scope_type='governorate' and v_scope_governorate is distinct from v_governorate then
+    raise exception 'provider_outside_finance_scope';
+  end if;
+  if not (public.has_admin_access(v_actor) or public.admin_has_permission('finance.wallet.adjust',
+    case when v_governorate is null then 'global' else 'governorate' end,v_governorate)) then
+    raise exception 'missing_finance_wallet_permission';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_provider_id::text,913578));
+  select * into v_existing from public.mamnoon_provider_cash_settlements
+  where idempotency_key=p_idempotency_key for update;
+  if found then
+    if v_existing.provider_id<>p_provider_id or v_existing.amount_iqd<>p_amount_iqd or v_existing.note<>btrim(p_note) then
+      raise exception 'settlement_idempotency_conflict';
+    end if;
+    return jsonb_build_object('settlement_id',v_existing.id,'amount_iqd',v_existing.amount_iqd,'duplicate',true);
+  end if;
+
+  select coalesce(sum(greatest(p.cash_iqd+coalesce(c.subsidy_iqd,0)-least(
+           p.cash_iqd+coalesce(c.subsidy_iqd,0),greatest(0,round(coalesce(p.commission,0)))::bigint
+         ),0)),0)::bigint
+  into v_payable_total
+  from (
+    select sr.id,sr.commission,sum(pt.amount)::bigint cash_iqd
+    from public.service_requests sr
+    join public.payment_transactions pt on pt.request_id=sr.id
+      and pt.purpose='service_request' and pt.status='paid'
+      and pt.provider in ('zaincash','customer_wallet') and pt.currency='IQD'
+      and pt.user_id=sr.customer_id
+    where sr.provider_id=p_provider_id and sr.status='completed'
+      and sr.payment_method in ('zaincash','customer_wallet')
+    group by sr.id,sr.commission
+  ) p
+  left join (
+    select request_id,sum(discount_amount)::bigint subsidy_iqd
+    from public.coupon_subsidy_ledger where provider_id=p_provider_id and status='payable'
+    group by request_id
+  ) c on c.request_id=p.id;
+
+  select coalesce(sum(amount_iqd),0)::bigint into v_settled_total
+  from public.mamnoon_provider_cash_settlements where provider_id=p_provider_id;
+  v_outstanding:=v_payable_total-v_settled_total;
+  if v_outstanding<=0 or p_amount_iqd>v_outstanding then raise exception 'settlement_exceeds_provider_payable'; end if;
+
+  insert into public.mamnoon_provider_cash_settlements(provider_id,amount_iqd,note,idempotency_key,created_by)
+  values(p_provider_id,p_amount_iqd,btrim(p_note),p_idempotency_key,v_actor)
+  returning id into v_settlement_id;
+  perform public.log_admin_action('record_provider_cash_settlement','provider',p_provider_id::text,
+    jsonb_build_object('settlement_id',v_settlement_id,'amount_iqd',p_amount_iqd,'note',btrim(p_note),
+      'outstanding_before_iqd',v_outstanding,'outstanding_after_iqd',v_outstanding-p_amount_iqd));
+  return jsonb_build_object('settlement_id',v_settlement_id,'amount_iqd',p_amount_iqd,
+    'outstanding_after_iqd',v_outstanding-p_amount_iqd,'duplicate',false);
+end;
+$function$;
