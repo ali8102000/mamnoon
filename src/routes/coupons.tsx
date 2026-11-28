@@ -24,6 +24,7 @@ type Coupon = {
   applicable_request_types: string[];
   applicable_vehicle_categories: string[];
   applicable_service_slugs: string[];
+  category_key: string;
 };
 
 function MyCouponsPage() {
@@ -38,7 +39,7 @@ function MyCouponsPage() {
     let alive = true;
     (async () => {
       setBusy(true);
-      const { data, error: queryError } = await (supabase as any).rpc("get_my_coupons_v2");
+      const { data, error: queryError } = await (supabase as any).rpc("get_my_coupons_v3");
       if (!alive) return;
       if (queryError) setError("تعذّر تحميل كوبوناتك حالياً");
       else setCoupons((data ?? []) as Coupon[]);
@@ -52,9 +53,9 @@ function MyCouponsPage() {
 
   const now = Date.now();
   const matchesCategory = (c: Coupon) => category === "all" ||
-    (category === "taxi" && c.applicable_request_types?.includes("taxi")) ||
-    (category === "large" && c.applicable_request_types?.includes("taxi") && c.applicable_vehicle_categories?.includes("large")) ||
-    (category === "service" && c.applicable_request_types?.includes("service"));
+    (category === "taxi" && c.category_key === "taxi") ||
+    (category === "large" && c.category_key === "large_vehicle") ||
+    (category === "service" && c.category_key === "technician");
   const available = coupons.filter(c => matchesCategory(c) && c.active && !c.used && (!c.expires_at || new Date(c.expires_at).getTime() > now));
   const unavailable = coupons.filter(c => matchesCategory(c) && !available.includes(c));
 
@@ -65,7 +66,7 @@ function MyCouponsPage() {
           <Link to="/home" className="h-10 w-10 rounded-xl glass grid place-items-center"><ArrowRight className="h-5 w-5" /></Link>
           <div><h1 className="text-xl font-black">كوبوناتي</h1><p className="text-xs text-muted-foreground">العروض والكوبونات المرسلة إلك من ممنون</p></div>
         </div>
-        <div className="flex flex-wrap gap-2 mb-4">{[["all","الكل"],["taxi","التكسي"],["large","السيارات الكبيرة"],["service","الفنيين"]].map(([value,label])=><button key={value} onClick={()=>setCategory(value)} className={`rounded-full px-3 py-2 text-xs font-bold border ${category===value?"bg-primary text-primary-foreground":"bg-background"}`}>{label}</button>)}</div>
+        <div className="flex w-full flex-wrap items-start gap-2 mb-4">{[["all","الكل"],["taxi","التكسي"],["large","السيارات الكبيرة"],["service","الفنيين"]].map(([value,label])=><button key={value} onClick={()=>setCategory(value)} className={`shrink-0 min-h-11 whitespace-nowrap rounded-full px-4 py-2.5 text-sm leading-5 font-bold border ${category===value?"bg-primary text-primary-foreground":"bg-background"}`}>{label}</button>)}</div>
         {busy ? <div className="py-16 grid place-items-center"><Loader2 className="h-7 w-7 animate-spin" /></div>
           : error ? <div className="glass rounded-2xl p-5 text-sm text-center">{error}</div>
           : coupons.length === 0 ? (
