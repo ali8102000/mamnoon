@@ -1603,6 +1603,11 @@ export default function RequestDetail() {
 
   async function applyRequestUrgency(multiplier: 2 | 3) {
     if (!request || !isCustomer || urgencyBusy) return;
+    if (!["pending", "searching"].includes(request.status) || request.provider_id) {
+      await loadRequest();
+      Alert.alert("انتهى البحث عن الفني", "تم تغيير حالة الطلب ولم يعد بمرحلة البحث، لذلك لا يمكن رفع السعر الآن.");
+      return;
+    }
     setUrgencyBusy(true);
     try {
       const { error } = await (supabase as any).rpc("apply_request_urgency", {
@@ -1612,7 +1617,13 @@ export default function RequestDetail() {
       if (error) throw error;
       await loadRequest();
     } catch (error: any) {
-      Alert.alert("تعذر رفع السعر", error?.message ?? "حاول مرة ثانية.");
+      const message = String(error?.message ?? "");
+      if (message.includes("urgency_only_available_while_searching")) {
+        await loadRequest();
+        Alert.alert("تغيّرت حالة الطلب", "لم يعد الطلب قيد البحث، لذلك لم يتم رفع السعر. حدّثنا حالة الطلب.");
+      } else {
+        Alert.alert("تعذر رفع السعر", message || "حاول مرة ثانية.");
+      }
     } finally {
       setUrgencyBusy(false);
     }
