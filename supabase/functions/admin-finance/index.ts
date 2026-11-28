@@ -345,6 +345,35 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, data });
     }
 
+    if (body.action === "search_coupon_users") {
+      await requirePermission("promotions.manage");
+      const query = typeof body.query === "string" ? body.query.trim().slice(0, 80) : "";
+      if (query.length < 2) return json({ error: "query_too_short" }, 400);
+      const safe = query.replace(/[,%()]/g, " ");
+      const { data: profiles, error: profileError } = await admin.from("profiles")
+        .select("id,full_name,phone,email")
+        .or("phone.ilike.%" + safe + "%,full_name.ilike.%" + safe + "%,email.ilike.%" + safe + "%")
+        .order("created_at", { ascending: false }).limit(50);
+      if (profileError) return json({ error: "coupon_user_search_failed" }, 500);
+      const ids = (profiles ?? []).map((profile: any) => profile.id);
+      if (!ids.length) return json({ users: [] });
+      const { data: roles, error: rolesError } = await admin.from("user_roles")
+        .select("user_id,role").in("user_id", ids);
+      if (rolesError) return json({ error: "coupon_user_roles_load_failed" }, 500);
+      const roleMap = new Map<string, string[]>();
+      for (const row of roles ?? []) {
+        const list = roleMap.get(row.user_id) ?? [];
+        list.push(String(row.role));
+        roleMap.set(row.user_id, list);
+      }
+      const users = (profiles ?? []).filter((profile: any) => {
+        const userRoles = roleMap.get(profile.id) ?? [];
+        return userRoles.includes("customer") &&
+          !userRoles.some((role: string) => ["driver","worker","large_driver"].includes(role));
+      });
+      return json({ users });
+    }
+
     if (body.action === "search_users") {
       const { data: assignment } = await caller.from("staff_assignments")
         .select("scope_type,scope_governorate").eq("user_id", auth.user.id).eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
