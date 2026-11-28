@@ -725,8 +725,12 @@ function RequestDetail() {
             ) : largeOffers.map((offer) => (
               <div key={offer.id} className="rounded-xl border border-orange-200 bg-orange-50/70 p-3 space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="h-10 w-10 rounded-full bg-orange-100 grid place-items-center font-black text-orange-700">
-                    {(offer.profile?.full_name || "س")[0]}
+                  <div className="h-10 w-10 rounded-full overflow-hidden bg-orange-100 grid place-items-center font-black text-orange-700 shrink-0">
+                    {offer.profile?.avatar_url ? (
+                      <img src={offer.profile.avatar_url} alt={offer.profile.full_name || "صورة مقدم الخدمة"} className="h-full w-full object-cover" />
+                    ) : (
+                      (offer.profile?.full_name || "س")[0]
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-sm">{offer.profile?.full_name || "صاحب سيارة"}</div>
