@@ -9,9 +9,6 @@ create table if not exists public.provider_cancellation_penalty_settings (
   updated_at timestamptz not null default now()
 );
 
-alter table public.service_requests
-  add column if not exists provider_cancellation_accepted_at timestamptz;
-
 create or replace function public.capture_provider_cancellation_acceptance_time()
 returns trigger
 language plpgsql
@@ -20,9 +17,7 @@ set search_path = public
 as $function$
 begin
   if auth.uid() = old.provider_id then
-    update public.service_requests
-    set provider_cancellation_accepted_at = old.accepted_at
-    where id = old.request_id;
+    perform set_config('mamnoon.provider_cancellation_accepted_at', coalesce(old.accepted_at::text, ''), true);
   end if;
   return old;
 end;
@@ -175,6 +170,8 @@ declare
   s public.provider_cancellation_penalty_settings%rowtype;
   v_provider uuid := new.cancelled_by;
   v_elapsed numeric;
+  v_accepted_at timestamptz;
+  v_acceptance_setting text;
   v_rate numeric;
   v_base numeric;
   v_assessed bigint;
@@ -199,7 +196,9 @@ begin
   select * into s from public.provider_cancellation_penalty_settings where id = true;
   if not found or not s.enabled or s.penalty_percent <= 0 then return new; end if;
 
-  v_elapsed := greatest(0, extract(epoch from (now() - coalesce(old.provider_cancellation_accepted_at, old.accepted_at, old.created_at))) / 60.0);
+  v_acceptance_setting := nullif(current_setting('mamnoon.provider_cancellation_accepted_at', true), '');
+  v_accepted_at := coalesce(v_acceptance_setting::timestamptz, old.accepted_at, old.created_at);
+  v_elapsed := greatest(0, extract(epoch from (now() - v_accepted_at)) / 60.0);
   v_rate := case when v_elapsed <= s.grace_minutes then s.penalty_percent / 2 else s.penalty_percent end;
   v_base := greatest(0, coalesce(old.customer_payable, old.customer_price, old.price_estimate, 0));
   v_assessed := round(v_base * v_rate / 100.0)::bigint;
