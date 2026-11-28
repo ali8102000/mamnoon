@@ -369,7 +369,7 @@ Deno.serve(async (req: Request) => {
       const [transactions, coupons] = await Promise.all([
         admin.from("account_wallet_transactions").select("*, profiles!inner(full_name,phone)")
           .order("created_at", { ascending: false }).limit(200),
-        admin.from("coupons").select("*").order("created_at", { ascending: false }).limit(200),
+        admin.from("coupons").select("*").eq("distribution_template", true).order("created_at", { ascending: false }).limit(200),
       ]);
       if (transactions.error || coupons.error) return json({ error: "finance_data_load_failed" }, 500);
       const walletTransactions = (transactions.data ?? []).map((row: any) => ({
@@ -406,6 +406,7 @@ Deno.serve(async (req: Request) => {
       await requireStrictPermission("promotions.read");
       const { data, error } = await admin.from("coupons")
         .select("*")
+        .eq("distribution_template", true)
         .order("created_at", { ascending: false });
       if (error) return json({ error: "coupons_load_failed" }, 500);
       return json({ coupons: data ?? [] });
@@ -449,23 +450,13 @@ Deno.serve(async (req: Request) => {
             (typeof body.expires_at !== "string" || !Number.isFinite(Date.parse(body.expires_at))))) {
         return json({ error: "invalid_request" }, 400);
       }
-      const applicableRequestTypes = Array.isArray(body.applicable_request_types) ? body.applicable_request_types : ["taxi"];
-      const applicableVehicleCategories = Array.isArray(body.applicable_vehicle_categories) ? body.applicable_vehicle_categories : ["economy","premium","luxury","large"];
-      const applicableServiceSlugs = Array.isArray(body.applicable_service_slugs) ? body.applicable_service_slugs : [];
-      if (!applicableRequestTypes.length || applicableRequestTypes.some((v: unknown) => !["taxi","service"].includes(String(v))) ||
-          applicableVehicleCategories.some((v: unknown) => !["economy","premium","luxury","large"].includes(String(v))) ||
-          applicableServiceSlugs.some((v: unknown) => typeof v !== "string" || v.length < 1 || v.length > 100)) {
-        return json({ error: "invalid_coupon_service_targeting" }, 400);
-      }
+      const categoryKey = ["taxi","large_vehicle","technician"].includes(String(body.category_key)) ? String(body.category_key) : "taxi";
       await requirePermission("promotions.manage");
-      return await rpc("admin_save_coupon_v2", {
+      return await rpc("admin_save_coupon_v3", {
         p_id: body.id ?? null, p_code: body.code.trim().toUpperCase(),
         p_type: body.type, p_value: body.value, p_max_uses: body.max_uses,
         p_expires_at: body.expires_at ?? null, p_active: body.active,
-        p_min_amount: body.min_amount,
-        p_applicable_request_types: applicableRequestTypes,
-        p_applicable_vehicle_categories: applicableVehicleCategories,
-        p_applicable_service_slugs: applicableServiceSlugs,
+        p_min_amount: body.min_amount, p_category_key: categoryKey,
       });
     }
 
@@ -475,6 +466,15 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await caller.rpc("admin_coupon_audience_count", { p_target: body.target });
       if (error) return json({ error: error.message }, 400);
       return json({ count: Number(data ?? 0) });
+    }
+
+    if (body.action === "list_coupon_issued") {
+      await requirePermission("promotions.read");
+      const templateId = body.coupon_id === undefined || body.coupon_id === null ? null : uuid(body.coupon_id) ? body.coupon_id : undefined;
+      if (templateId === undefined) return json({ error: "invalid_coupon_id" }, 400);
+      const { data, error } = await caller.rpc("admin_list_coupon_issued_codes", { p_template_id: templateId });
+      if (error) return json({ error: error.message }, 400);
+      return json({ codes: data ?? [] });
     }
 
     if (body.action === "distribute_coupon") {
