@@ -113,6 +113,32 @@ begin
 end;
 $function$;
 
+create table if not exists public.provider_cancellation_penalty_ledger (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references public.service_requests(id) on delete restrict,
+  provider_id uuid not null references auth.users(id) on delete restrict,
+  assessed_iqd bigint not null check (assessed_iqd >= 0),
+  collected_iqd bigint not null default 0 check (collected_iqd >= 0 and collected_iqd <= assessed_iqd),
+  outstanding_iqd bigint not null default 0 check (outstanding_iqd >= 0),
+  applied_percent numeric(5,2) not null,
+  elapsed_minutes numeric(10,2) not null,
+  grace_minutes integer not null,
+  status text not null check (status in ('collected','partially_collected','accrued')),
+  idempotency_key text not null unique,
+  wallet_transaction_id uuid references public.account_wallet_transactions(id),
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (request_id, provider_id)
+);
+create index if not exists provider_cancellation_penalty_provider_created_idx
+  on public.provider_cancellation_penalty_ledger(provider_id, created_at desc);
+alter table public.provider_cancellation_penalty_ledger enable row level security;
+drop policy if exists provider_cancellation_penalty_ledger_read_own on public.provider_cancellation_penalty_ledger;
+create policy provider_cancellation_penalty_ledger_read_own
+  on public.provider_cancellation_penalty_ledger for select to authenticated
+  using (provider_id = auth.uid() or public.has_admin_access(auth.uid()));
+revoke insert, update, delete on public.provider_cancellation_penalty_ledger from anon, authenticated;
+
 create or replace function public.apply_provider_cancellation_penalty()
 returns trigger
 language plpgsql
@@ -154,7 +180,7 @@ begin
   if v_assessed <= 0 then return new; end if;
 
   v_key := 'provider_cancel:' || old.id::text || ':' || v_provider::text;
-  if exists (select 1 from public.mamnoon_revenue_ledger where idempotency_key = v_key) then
+  if exists (select 1 from public.provider_cancellation_penalty_ledger where idempotency_key = v_key) then
     return new;
   end if;
 
@@ -187,20 +213,19 @@ begin
     where user_id = v_provider;
   end if;
 
-  insert into public.mamnoon_revenue_ledger(
-    user_id, request_id, revenue_type, assessed_iqd, collected_iqd,
-    status, idempotency_key, metadata
+  insert into public.provider_cancellation_penalty_ledger(
+    request_id, provider_id, assessed_iqd, collected_iqd, outstanding_iqd,
+    applied_percent, elapsed_minutes, grace_minutes, status, idempotency_key,
+    wallet_transaction_id, metadata
   ) values (
-    v_provider, old.id, 'provider_cancellation_penalty', v_assessed, v_debit,
+    old.id, v_provider, v_assessed, v_debit, v_assessed - v_debit,
+    v_rate, round(v_elapsed,2), s.grace_minutes,
     case when v_debit >= v_assessed then 'collected'
          when v_debit > 0 then 'partially_collected'
          else 'accrued' end,
     v_key,
-    jsonb_build_object(
-      'request_code', old.request_code, 'applied_percent', v_rate,
-      'elapsed_minutes', round(v_elapsed,2), 'grace_minutes', s.grace_minutes,
-      'wallet_transaction_key', v_key, 'outstanding_iqd', v_assessed - v_debit
-    )
+    (select id from public.account_wallet_transactions where idempotency_key = v_key),
+    jsonb_build_object('request_code', old.request_code)
   );
 
   insert into public.notifications(user_id, type, title, body, link, data)
