@@ -243,7 +243,7 @@ export default function AdminFinanceScreen() {
           <View style={s.row}>{([["customers","كل الزبائن"],["customers_1","طلب واحد"],["customers_2","طلبان"],["customers_3","3 طلبات"],["customers_4","4 طلبات"],["customers_5","5+ طلبات"],["single","مستخدم محدد"]] as const).map(([k,label])=><TouchableOpacity key={k} onPress={()=>setTarget(k)} style={[s.choice,target===k&&s.active]}><Text style={[s.tabText,target===k&&s.activeText]}>{label}</Text></TouchableOpacity>)}</View>
           {target==="single"&&<View style={{gap:8}}>
             <TextInput value={query} onChangeText={setQuery} placeholder="اسم الزبون أو رقم هاتفه" placeholderTextColor={palette.muted} style={s.input} textAlign="right"/>
-            <Action label={busy?"جارٍ البحث...":"بحث عن زبون"} disabled={busy} onPress={()=>void searchUsers()}/>
+            <Action label={busy?"جارٍ البحث...":"بحث عن زبون"} disabled={busy} onPress={()=>void searchCouponUsers()}/>
             {users.map(u=><TouchableOpacity key={u.id} onPress={()=>setSelected(u)} style={[s.choice,selected?.id===u.id&&s.active]}>
               <Text style={[s.tabText,selected?.id===u.id&&s.activeText]}>{u.full_name||"زبون"} · {u.phone||u.email||u.id}</Text>
             </TouchableOpacity>)}
