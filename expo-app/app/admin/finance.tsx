@@ -140,7 +140,7 @@ export default function AdminFinanceScreen() {
     finally { setBusy(false); }
   };
   const saveCoupon = async () => {
-    if (!/^[A-Za-z0-9_-]{2,50}$/.test(code.trim()) || !Number.isFinite(Number(value)) || Number(value) < 0 ||
+    if (!/^[A-Za-z0-9_-]{2,50}$/.test(code.trim()) || !Number.isFinite(Number(value)) || Number(value) <= 0 ||
         !/^\\d+$/.test(maxUses) || Number(maxUses) < 1 || !Number.isFinite(Number(minAmount)) || Number(minAmount) < 0) {
       Alert.alert("تحقق من البيانات", "تأكد من رمز الكوبون والقيمة وعدد الاستخدامات."); return;
     }
@@ -232,7 +232,7 @@ export default function AdminFinanceScreen() {
           <Text style={s.muted}>{c.active?"فعال":"متوقف"}{c.expires_at?" · ينتهي "+new Date(c.expires_at).toLocaleDateString("ar-IQ"):""}</Text>
           {(canPublishCoupons || canDeleteCoupons) && <View style={s.row}>
             {canPublishCoupons && <TouchableOpacity style={s.small} disabled={busy} onPress={()=>distribute(c)}><Text style={s.smallText}>توزيع</Text></TouchableOpacity>}
-            {canDeleteCoupons && <TouchableOpacity style={s.smallDanger} disabled={busy} onPress={()=>Alert.alert("حذف الكوبون","متأكد من حذف هذا الكوبون؟",[{text:"رجوع",style:"cancel"},{text:"حذف",style:"destructive",onPress:()=>void run({action:"delete_coupon",coupon_id:c.id},"تم حذف الكوبون.")}])}><Text style={s.smallText}>حذف</Text></TouchableOpacity>}
+            {canDeleteCoupons && <TouchableOpacity style={s.smallDanger} disabled={busy} onPress={()=>Alert.alert("إيقاف قالب الكوبون","راح يتوقف القالب وكل الرموز الشخصية التابعة إله، بدون حذف سجل الاستخدام.",[{text:"رجوع",style:"cancel"},{text:"إيقاف",style:"destructive",onPress:()=>void run({action:"delete_coupon",coupon_id:c.id},"تم إيقاف القالب والرموز التابعة.")}])}><Text style={s.smallText}>إيقاف</Text></TouchableOpacity>}
           </View>}
         </View>)}
         {!coupons.length && <Text style={s.muted}>ماكو قوالب كوبونات مسجلة حالياً.</Text>}
