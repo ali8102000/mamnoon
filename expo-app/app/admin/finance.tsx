@@ -6,7 +6,8 @@ import { useAuth } from "@/lib/auth-context";
 import { palette, radius, space } from "@/styles/theme";
 
 type UserRow = { id: string; full_name: string | null; phone: string | null; email: string | null };
-type Coupon = { id: string; code: string; type: string; value: number; max_uses: number; used_count?: number; active: boolean; expires_at?: string | null; min_amount?: number };
+type Coupon = { id: string; code: string; type: string; value: number; max_uses: number; used_count?: number; active: boolean; expires_at?: string | null; min_amount?: number; category_key?: string };
+type IssuedCoupon = { coupon_id:string; code:string; category_key:string; full_name:string|null; phone:string|null; assigned_at:string; used:boolean; active:boolean; expires_at:string|null; discount_type:string; discount_value:number };
 type Tx = { id: string; user_id: string; amount: number; type: string; status: string; created_at: string; profiles?: { full_name?: string; phone?: string } };
 type SubsidyReport = { payable_count?: number; payable_total?: number; pending_count?: number; pending_total?: number; void_count?: number };
 type Tab = "wallet" | "coupons" | "transactions";
@@ -29,6 +30,7 @@ export default function AdminFinanceScreen() {
   const [note, setNote] = useState("");
   const [kind, setKind] = useState<"credit" | "debit">("credit");
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [issuedCoupons, setIssuedCoupons] = useState<IssuedCoupon[]>([]);
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [subsidyReport, setSubsidyReport] = useState<SubsidyReport | null>(null);
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
@@ -40,6 +42,7 @@ export default function AdminFinanceScreen() {
   const [maxUses, setMaxUses] = useState("100");
   const [minAmount, setMinAmount] = useState("0");
   const [target, setTarget] = useState("customers");
+  const [categoryKey, setCategoryKey] = useState<"taxi"|"large_vehicle"|"technician">("taxi");
   const [busy, setBusy] = useState(false);
 
   const invoke = useCallback(async (body: Record<string, unknown>) => {
@@ -98,6 +101,8 @@ export default function AdminFinanceScreen() {
       const data = await invoke({ action: "list" });
       setCoupons(data.coupons ?? []);
       setTransactions(data.transactions ?? []);
+      const issued = await invoke({ action: "list_coupon_issued" });
+      setIssuedCoupons(issued.codes ?? []);
       void loadCouponMetrics();
     } catch (e: any) {
       setError(String(e?.message || "تعذر تحميل البيانات"));
@@ -135,18 +140,22 @@ export default function AdminFinanceScreen() {
     finally { setBusy(false); }
   };
   const saveCoupon = async () => {
-    if (!/^[A-Za-z0-9_-]{2,50}$/.test(code.trim()) || !Number.isFinite(Number(value)) || Number(value) < 0 ||
+    if (!/^[A-Za-z0-9_-]{2,50}$/.test(code.trim()) || !Number.isFinite(Number(value)) || Number(value) <= 0 ||
         !/^\\d+$/.test(maxUses) || Number(maxUses) < 1 || !Number.isFinite(Number(minAmount)) || Number(minAmount) < 0) {
       Alert.alert("تحقق من البيانات", "تأكد من رمز الكوبون والقيمة وعدد الاستخدامات."); return;
     }
     await run({ action: "save_coupon", code: code.trim().toUpperCase(), type: couponType, value: Number(value),
-      max_uses: Number(maxUses), min_amount: Number(minAmount), active: true, expires_at: null }, "تم حفظ الكوبون.");
+      max_uses: Number(maxUses), min_amount: Number(minAmount), category_key: categoryKey,
+      active: true, expires_at: null }, "تم حفظ قالب الكوبون. عند التوزيع ينشئ ممنون رمزاً مستقلاً لكل حساب.");
     setCode(""); setValue("");
   };
-  const distribute = (coupon: Coupon) => Alert.alert("توزيع الكوبون", "هذا الكوبون مخصص للزبائن فقط ويُستخدم لطلبات التكسي الاعتيادي.", [
-    { text: "إلغاء", style: "cancel" },
-    { text: "توزيع على الزبائن", onPress: () => void run({ action: "distribute_coupon", coupon_id: coupon.id, target: "customers" }, "تم إرسال الكوبون للزبائن.") },
-  ]);
+  const distribute = (coupon: Coupon) => {
+    if (target==="single" && !selected) { Alert.alert("حدد الزبون","ابحث عن حساب الزبون وحدده أولاً."); return; }
+    Alert.alert("توزيع كوبونات شخصية", "راح ينشئ النظام رمزاً مختلفاً لكل زبون مؤهل، والرمز ما يشتغل إلا بحسابه.", [
+      { text: "إلغاء", style: "cancel" },
+      { text: "توزيع على الفئة المحددة", onPress: () => void run({ action: "distribute_coupon", coupon_id: coupon.id, target, single_user_id: target==="single"?selected?.id:undefined }, "تم إنشاء رموز شخصية وإرسالها للحسابات المؤهلة.") },
+    ]);
+  };
 
   if (authLoading || loading) return <View style={s.center}><ActivityIndicator color={palette.brand} /><Text style={s.muted}>جاري تحميل الإدارة المالية...</Text></View>;
   if (allowed === false) return <View style={s.center}><Text style={s.title}>غير مصرّح</Text><Text style={s.muted}>هذه الصفحة للمدير والمالية فقط.</Text></View>;
@@ -206,23 +215,46 @@ export default function AdminFinanceScreen() {
           <Text style={s.muted}>الكوبون مخصص لطلبات التكسي الاعتيادي فقط، ولا يشمل الفنيين أو مركبات الكيا الكبيرة.</Text>
         </View>
         {canManageCoupons && <View style={s.card}>
-          <Text style={s.cardTitle}>إنشاء كوبون</Text>
-          <TextInput value={code} onChangeText={setCode} autoCapitalize="characters" placeholder="رمز الكوبون" placeholderTextColor={palette.muted} style={s.input}/>
+          <Text style={s.cardTitle}>إنشاء قالب كوبون شخصي</Text>
+          <Text style={s.muted}>الرمز هنا داخلي للحملة. ممنون ينشئ رمزاً مختلفاً لكل زبون عند التوزيع.</Text>
+          <Text style={s.muted}>فئة الكوبون</Text>
+          <View style={s.row}>{([["taxi","التكسي"],["large_vehicle","السيارات الكبيرة"],["technician","الفنيون"]] as const).map(([k,label])=><TouchableOpacity key={k} onPress={()=>setCategoryKey(k)} style={[s.choice,categoryKey===k&&s.active]}><Text style={[s.tabText,categoryKey===k&&s.activeText]}>{label}</Text></TouchableOpacity>)}</View>
+          <TextInput value={code} onChangeText={setCode} autoCapitalize="characters" placeholder="اسم/رمز الحملة الداخلي" placeholderTextColor={palette.muted} style={s.input}/>
           <View style={s.row}>{(["percentage","fixed"] as const).map(k=><TouchableOpacity key={k} onPress={()=>setCouponType(k)} style={[s.choice,couponType===k&&s.active]}><Text style={[s.tabText,couponType===k&&s.activeText]}>{k==="percentage"?"نسبة مئوية":"مبلغ ثابت"}</Text></TouchableOpacity>)}</View>
           <TextInput value={value} onChangeText={setValue} keyboardType="decimal-pad" placeholder={couponType==="percentage"?"النسبة":"قيمة الخصم بالدينار"} placeholderTextColor={palette.muted} style={s.input}/>
-          <TextInput value={maxUses} onChangeText={setMaxUses} keyboardType="number-pad" placeholder="الحد الأقصى للاستخدام" placeholderTextColor={palette.muted} style={s.input}/>
+          <TextInput value={maxUses} onChangeText={setMaxUses} keyboardType="number-pad" placeholder="الحد الأقصى لعدد المستفيدين" placeholderTextColor={palette.muted} style={s.input}/>
           <TextInput value={minAmount} onChangeText={setMinAmount} keyboardType="decimal-pad" placeholder="الحد الأدنى للطلب" placeholderTextColor={palette.muted} style={s.input}/>
           <Action label="حفظ الكوبون" disabled={busy} onPress={() => void saveCoupon()}/>
         </View>}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>الفئة المستهدفة بالتوزيع</Text>
+          <View style={s.row}>{([["customers","كل الزبائن"],["customers_1","طلب واحد"],["customers_2","طلبان"],["customers_3","3 طلبات"],["customers_4","4 طلبات"],["customers_5","5+ طلبات"],["single","مستخدم محدد"]] as const).map(([k,label])=><TouchableOpacity key={k} onPress={()=>setTarget(k)} style={[s.choice,target===k&&s.active]}><Text style={[s.tabText,target===k&&s.activeText]}>{label}</Text></TouchableOpacity>)}</View>
+          {target==="single"&&<View style={{gap:8}}>
+            <TextInput value={query} onChangeText={setQuery} placeholder="اسم الزبون أو رقم هاتفه" placeholderTextColor={palette.muted} style={s.input} textAlign="right"/>
+            <Action label={busy?"جارٍ البحث...":"بحث عن زبون"} disabled={busy} onPress={()=>void searchUsers()}/>
+            {users.map(u=><TouchableOpacity key={u.id} onPress={()=>setSelected(u)} style={[s.choice,selected?.id===u.id&&s.active]}>
+              <Text style={[s.tabText,selected?.id===u.id&&s.activeText]}>{u.full_name||"زبون"} · {u.phone||u.email||u.id}</Text>
+            </TouchableOpacity>)}
+            {!!selected&&<Text style={s.muted}>الزبون المحدد: {selected.full_name||selected.phone}</Text>}
+          </View>}
+        </View>
         {coupons.map(c=><View key={c.id} style={s.card}>
-          <Text style={s.cardTitle}>{c.code}</Text><Text style={s.muted}>{c.type==="percentage"?c.value+"%":Number(c.value).toLocaleString("ar-IQ")+" د.ع"} · المستخدم {c.used_count ?? 0} من {c.max_uses}</Text>
+          <Text style={s.cardTitle}>{c.code}</Text><Text style={s.muted}>الفئة: {c.category_key==="large_vehicle"?"السيارات الكبيرة":c.category_key==="technician"?"الفنيون":"التكسي"} · {c.type==="percentage"?c.value+"%":Number(c.value).toLocaleString("ar-IQ")+" د.ع"} · الموزع {c.used_count ?? 0} من {c.max_uses}</Text>
           <Text style={s.muted}>{c.active?"فعال":"متوقف"}{c.expires_at?" · ينتهي "+new Date(c.expires_at).toLocaleDateString("ar-IQ"):""}</Text>
           {(canPublishCoupons || canDeleteCoupons) && <View style={s.row}>
             {canPublishCoupons && <TouchableOpacity style={s.small} disabled={busy} onPress={()=>distribute(c)}><Text style={s.smallText}>توزيع</Text></TouchableOpacity>}
-            {canDeleteCoupons && <TouchableOpacity style={s.smallDanger} disabled={busy} onPress={()=>Alert.alert("حذف الكوبون","متأكد من حذف هذا الكوبون؟",[{text:"رجوع",style:"cancel"},{text:"حذف",style:"destructive",onPress:()=>void run({action:"delete_coupon",coupon_id:c.id},"تم حذف الكوبون.")}])}><Text style={s.smallText}>حذف</Text></TouchableOpacity>}
+            {canDeleteCoupons && <TouchableOpacity style={s.smallDanger} disabled={busy} onPress={()=>Alert.alert("إيقاف قالب الكوبون","راح يتوقف القالب وكل الرموز الشخصية التابعة إله، بدون حذف سجل الاستخدام.",[{text:"رجوع",style:"cancel"},{text:"إيقاف",style:"destructive",onPress:()=>void run({action:"delete_coupon",coupon_id:c.id},"تم إيقاف القالب والرموز التابعة.")}])}><Text style={s.smallText}>إيقاف</Text></TouchableOpacity>}
           </View>}
         </View>)}
-        {!coupons.length && <Text style={s.muted}>ماكو كوبونات مسجلة حالياً.</Text>}
+        {!coupons.length && <Text style={s.muted}>ماكو قوالب كوبونات مسجلة حالياً.</Text>}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>الرموز الشخصية الموزعة</Text>
+          {issuedCoupons.length===0?<Text style={s.muted}>ماكو رموز موزعة لحد الآن.</Text>:issuedCoupons.slice(0,100).map(item=><View key={item.coupon_id} style={{borderTopWidth:1,borderTopColor:palette.line,paddingTop:9,gap:3}}>
+            <Text style={s.cardTitle}>{item.code}</Text>
+            <Text style={s.muted}>{item.full_name||"زبون"} · {item.phone||"—"} · {item.category_key==="large_vehicle"?"السيارات الكبيرة":item.category_key==="technician"?"الفنيون":"التكسي"}</Text>
+            <Text style={s.muted}>{item.used?"مستخدم":item.active?"متاح":"متوقف"} · {new Date(item.assigned_at).toLocaleString("ar-IQ")}</Text>
+          </View>)}
+        </View>
       </>}
       {tab === "transactions" && <>
         <Text style={s.title}>آخر المعاملات</Text><Text style={s.muted}>آخر {transactions.length} معاملة. القيم معروضة كما رجعت من سجل المعاملات.</Text>
